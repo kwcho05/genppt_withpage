@@ -59,12 +59,26 @@ ipcMain.handle('generate-pdf', async (event, { html, fileName }) => {
   const pdfWin = new BrowserWindow({ show: false, webPreferences: { offscreen: false } });
   try {
     await pdfWin.loadFile(tmpFile);
-    await new Promise((resolve) => setTimeout(resolve, 300));
 
+    // 사진(base64 dataURL)이 큰 경우 디코딩/레이아웃이 끝나기 전에 인쇄되면
+    // 이미지가 빈 칸으로 나오므로, 모든 <img>가 로드될 때까지 기다린다.
+    await pdfWin.webContents.executeJavaScript(`
+      Promise.all(Array.from(document.images).map((img) => {
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.addEventListener('load', resolve, { once: true });
+          img.addEventListener('error', resolve, { once: true });
+        });
+      }))
+    `);
+    // 이미지 디코딩 후 레이아웃/페인트가 안정화될 시간을 약간 더 준다.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // 참고: pageSize를 숫자 객체로 지정하면 이 Electron 버전에서 배경색/이미지가
+    // 통째로 빠지는 버그가 있어(재현 확인됨), CSS @page 크기 + preferCSSPageSize로 대체한다.
     const pdfBuffer = await pdfWin.webContents.printToPDF({
       printBackground: true,
-      landscape: false,
-      pageSize: { width: 254000, height: 142875 }, // 10in x 5.625in (microns)
+      preferCSSPageSize: true,
       margins: { top: 0, bottom: 0, left: 0, right: 0 }
     });
 
