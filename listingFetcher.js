@@ -21,39 +21,11 @@ const EXTRACT_SCRIPT = `
       .trim();
   }
 
-  const imageUrls = [...new Set(
-    Array.from(document.querySelectorAll('img'))
-      .map((i) => i.src)
-      .filter((s) => s.includes('/gallery/'))
-  )];
-
-  return { title, fields, description, imageUrls };
+  return { title, fields, description };
 })()
 `;
 
-const DOWNLOAD_IMAGES_SCRIPT = (urlsJson) => `
-(async function () {
-  const urls = ${urlsJson};
-  const results = [];
-  for (const url of urls) {
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      results.push(dataUrl);
-    } catch (e) {
-      results.push(null);
-    }
-  }
-  return results;
-})()
-`;
-
+// 사진은 관리자 매물사진첩의 "워터마크 제외 이미지"로 별도로 받아온다 (adminPhotoFetcher.js 참고).
 async function fetchListingData(itemNo) {
   const cleanNo = String(itemNo).trim().replace(/[^0-9]/g, '');
   if (!cleanNo) throw new Error('매물번호를 올바르게 입력해주세요.');
@@ -68,19 +40,10 @@ async function fetchListingData(itemNo) {
       throw new Error('해당 매물번호를 찾을 수 없습니다. 번호를 다시 확인해주세요.');
     }
 
-    let images = [];
-    if (data.imageUrls && data.imageUrls.length) {
-      images = await win.webContents.executeJavaScript(
-        DOWNLOAD_IMAGES_SCRIPT(JSON.stringify(data.imageUrls))
-      );
-      images = images.filter(Boolean);
-    }
-
     return {
       title: data.title,
       fields: data.fields,
-      description: data.description,
-      images
+      description: data.description
     };
   } finally {
     win.destroy();

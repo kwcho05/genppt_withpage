@@ -539,12 +539,16 @@ document.getElementById('lookupBtn').addEventListener('click', async () => {
     statusEl.textContent = '자동 조회 기능을 사용할 수 없습니다. 프로그램을 다시 설치/실행해주세요. (구버전 실행파일일 수 있습니다)';
     return;
   }
-  statusEl.textContent = '조회 중입니다... (사진 다운로드 포함, 몇 초 걸릴 수 있습니다)';
+  statusEl.textContent = '조회 중입니다... (관리자 매물사진첩에서 워터마크 없는 사진을 받는 중, 처음 실행 시 로그인 창이 뜰 수 있습니다)';
   document.getElementById('lookupBtn').disabled = true;
   try {
     const data = await window.api.fetchListing(itemNo);
     applyListingData(data);
-    statusEl.textContent = `조회 완료 — 사진 ${data.images.length}장 불러옴. 아래 내용을 확인하고 필요하면 수정한 뒤, 맨 아래 "PPT 생성" 버튼을 눌러 승인해주세요.`;
+    if (data.photoWarning) {
+      statusEl.textContent = `정보는 채웠지만 사진을 가져오지 못했습니다: ${data.photoWarning} (사진은 아래에서 직접 업로드해주세요)`;
+    } else {
+      statusEl.textContent = `조회 완료 — 사진 ${data.images.length}장 불러옴(워터마크 제외). 아래 내용을 확인하고 필요하면 수정한 뒤, 맨 아래 "PPT 생성" 버튼을 눌러 승인해주세요.`;
+    }
   } catch (err) {
     console.error(err);
     statusEl.textContent = '조회 중 오류가 발생했습니다: ' + err.message;
