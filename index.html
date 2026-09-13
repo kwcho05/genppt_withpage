@@ -148,6 +148,8 @@
   }
   #generateBtn { background: var(--navy); color: #fff; }
   #generateBtn:hover { background: #16283b; }
+  #pdfBtn { background: var(--gold); color: #fff; }
+  #pdfBtn:hover { background: #ad8a1f; }
   #sampleBtn { background: #eef1f5; color: var(--navy); }
   #sampleBtn:hover { background: #e2e6ec; }
   #status { font-size: 13px; color: var(--gray); }
@@ -301,6 +303,7 @@
 
 <div class="actions">
   <button id="generateBtn">PPT 생성 (다운로드)</button>
+  <button id="pdfBtn">PDF 생성 (다운로드)</button>
   <button id="sampleBtn">샘플 데이터 채우기</button>
   <span id="status"></span>
 </div>
@@ -978,6 +981,174 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
   } catch (err) {
     console.error(err);
     statusEl.textContent = '오류가 발생했습니다: ' + err.message;
+  }
+});
+
+// ---------- PDF 생성 (PPT와 동일한 구조/이미지) ----------
+function buildSlidesHtmlDoc() {
+  const get = (id) => document.getElementById(id).value.trim();
+  const CHARCOAL = '#3A3A3A';
+  const CORAL = '#D9764A';
+  const GOLD = '#E3AE43';
+  const GRAY = '#6B7280';
+  const LIGHT = '#EDEDED';
+  const BORDER = '#DCDCDC';
+  const IN = 96; // 1inch = 96px (PDF 페이지 크기와 동일 스케일)
+  const PAGE_W = 10 * IN;
+  const PAGE_H = 5.625 * IN;
+
+  const photos = getPhotosObject();
+  const dealLabel = get('dealType') || '임대';
+  const termsValue = get('f_terms');
+  const buildingTag = get('buildingTag');
+  const landTag = get('landTag');
+
+  const rows = [
+    ['소재지', get('f_location')],
+    ['임대조건', get('f_terms')],
+    ['면적', get('f_area')],
+    ['건축·연면적', get('f_gfa')],
+    ['층고 / 전력', get('f_power')],
+    ['용도지역 / 지목', get('f_zone')],
+    ['주용도', get('f_use')],
+    ['방향 / 주차', get('f_direction')],
+    ['부대시설', get('f_facility')],
+    ['입주/승인', get('f_move')]
+  ];
+
+  const rawFeatureText = document.getElementById('f_feature').value;
+  const featureItems = [];
+  const seenFeature = new Set();
+  rawFeatureText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).forEach((item) => {
+    const key = item.replace(/\s+/g, ' ').toLowerCase();
+    if (seenFeature.has(key)) return;
+    seenFeature.add(key);
+    featureItems.push(item);
+  });
+  const useTwoCols = featureItems.length >= 5;
+
+  const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const brandBar = `
+    <div style="position:absolute;left:0;top:0;width:${0.12 * IN}px;height:${2.815 * IN}px;background:${CORAL};"></div>
+    <div style="position:absolute;left:0;top:${2.815 * IN}px;width:${0.12 * IN}px;height:${2.815 * IN}px;background:${GOLD};"></div>
+  `;
+
+  // ---- Slide 1: 표지 ----
+  const mainImgHtml = photos.main
+    ? `<img src="${photos.main}" style="width:100%;height:100%;object-fit:cover;display:block;">`
+    : `<div style="width:100%;height:100%;background:${LIGHT};border:1px solid ${BORDER};display:flex;align-items:center;justify-content:center;color:${GRAY};font-size:14px;box-sizing:border-box;">대표사진 삽입</div>`;
+
+  const termsChip = termsValue
+    ? `<div style="position:absolute;left:${(0.4 + 1.3 + 0.15) * IN}px;top:${2.15 * IN}px;width:${(4.3 - 1.3 - 0.15) * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${LIGHT};border:1px solid ${CORAL};display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:0 8px;">
+        <span style="font-size:${termsValue.length > 16 ? 9.5 : 11.5}pt;font-weight:700;color:${CHARCOAL};text-align:center;">${esc(termsValue)}</span>
+      </div>`
+    : '';
+
+  const halfW = (4.3 - 0.15) / 2;
+  const tagsHtml = [buildingTag, landTag].map((tag, i) => {
+    if (!tag) return '';
+    const tx = (0.4 + i * (halfW + 0.15)) * IN;
+    return `<div style="position:absolute;left:${tx}px;top:${2.8 * IN}px;width:${halfW * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${LIGHT};border:1px solid ${GOLD};display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+      <span style="font-size:12.5pt;font-weight:700;color:${CHARCOAL};">${esc(tag)}</span>
+    </div>`;
+  }).join('');
+
+  const slide1 = `
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;">
+    ${brandBar}
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.55 * IN}px;width:${4.3 * IN}px;font-size:21pt;font-weight:700;color:${CHARCOAL};">${esc(get('title') || '매물 제목')}</div>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${1.42 * IN}px;width:${0.6 * IN}px;height:6px;background:${CORAL};"></div>
+    <div style="position:absolute;left:${1.04 * IN}px;top:${1.42 * IN}px;width:${0.3 * IN}px;height:6px;background:${GOLD};"></div>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${1.55 * IN}px;width:${4.3 * IN}px;font-size:9.5pt;color:${GRAY};">${esc(get('subtitle') || '주소 요약을 입력하세요')}</div>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${2.15 * IN}px;width:${1.3 * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${CORAL};display:flex;align-items:center;justify-content:center;">
+      <span style="font-size:13pt;font-weight:700;color:#fff;">${esc(dealLabel)}</span>
+    </div>
+    ${termsChip}
+    ${tagsHtml}
+    <div style="position:absolute;left:${5.0 * IN}px;top:${0.4 * IN}px;width:${4.6 * IN}px;height:${4.83 * IN}px;">${mainImgHtml}</div>
+  </div>`;
+
+  // ---- Slide 2: 매물 핵심정보 ----
+  const tableRowsHtml = rows.map(([label, value]) => `
+    <tr>
+      <td style="background:${LIGHT};color:${CHARCOAL};font-weight:700;padding:4px 8px;border:0.75px solid ${BORDER};width:${2.0 * IN}px;">${esc(label)}</td>
+      <td style="color:#333;padding:4px 8px;border:0.75px solid ${BORDER};">${esc(value) || '-'}</td>
+    </tr>`).join('');
+
+  const featureBoxHtml = featureItems.length > 0 ? `
+    <div style="position:absolute;left:${0.4 * IN}px;top:${3.95 * IN}px;width:${9.2 * IN}px;height:${1.55 * IN}px;border-radius:6px;background:${LIGHT};border:1px solid ${BORDER};box-sizing:border-box;overflow:hidden;">
+      <div style="position:absolute;left:0;top:0;width:6px;height:100%;background:${CORAL};"></div>
+      <div style="padding:8px 15px 0 21px;font-size:11pt;font-weight:700;color:${CHARCOAL};">특징 및 장점</div>
+      <div style="padding:4px 15px 8px 21px;font-size:9.5pt;color:#333;column-count:${useTwoCols ? 2 : 1};column-gap:20px;">
+        ${featureItems.map((item) => `<div style="break-inside:avoid;line-height:1.35;">● ${esc(item)}</div>`).join('')}
+      </div>
+    </div>` : '';
+
+  const slide2 = `
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;">
+    ${brandBar}
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.25 * IN}px;width:${9.2 * IN}px;font-size:15pt;font-weight:700;color:${CHARCOAL};">매물 핵심정보</div>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.68 * IN}px;width:${9.2 * IN}px;font-size:9.5pt;font-style:italic;color:${GRAY};">${esc(get('propertyName') || '매물명')}</div>
+    <table style="position:absolute;left:${0.4 * IN}px;top:${1.15 * IN}px;width:${9.2 * IN}px;border-collapse:collapse;font-size:9.5pt;font-family:'Malgun Gothic',sans-serif;">
+      <tr>
+        <td style="background:${CHARCOAL};color:#fff;font-weight:700;text-align:center;padding:4px 8px;border:0.75px solid ${BORDER};">구분</td>
+        <td style="background:${CHARCOAL};color:#fff;font-weight:700;text-align:center;padding:4px 8px;border:0.75px solid ${BORDER};">내용</td>
+      </tr>
+      ${tableRowsHtml}
+    </table>
+    ${featureBoxHtml}
+  </div>`;
+
+  // ---- Slide 3: 매물 사진 ----
+  const galleryW = (9.2 - 2 * 0.15) / 3;
+  const galleryH = (5.63 - 1.0 - 0.4 - 0.15) / 2;
+  let galleryCells = '';
+  for (let i = 0; i < 6; i++) {
+    const row = Math.floor(i / 3);
+    const col = i % 3;
+    const x = (0.4 + col * (galleryW + 0.15)) * IN;
+    const y = (1.0 + row * (galleryH + 0.15)) * IN;
+    const key = 'p' + (i + 1);
+    const cellStyle = `position:absolute;left:${x}px;top:${y}px;width:${galleryW * IN}px;height:${galleryH * IN}px;`;
+    if (photos[key]) {
+      galleryCells += `<div style="${cellStyle}"><img src="${photos[key]}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>`;
+    } else {
+      galleryCells += `<div style="${cellStyle}background:${LIGHT};border:1px solid ${BORDER};box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:${GRAY};font-size:9pt;">사진 ${i + 2} 삽입</div>`;
+    }
+  }
+
+  const slide3 = `
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;">
+    ${brandBar}
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.3 * IN}px;width:${9.2 * IN}px;font-size:16pt;font-weight:700;color:${CHARCOAL};">매물 사진</div>
+    ${galleryCells}
+  </div>`;
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Malgun Gothic', sans-serif; }
+    .pdf-page { page-break-after: always; }
+    .pdf-page:last-child { page-break-after: auto; }
+  </style></head><body>${slide1}${slide2}${slide3}</body></html>`;
+}
+
+document.getElementById('pdfBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('status');
+  if (!window.api || !window.api.generatePdf) {
+    statusEl.textContent = 'PDF 생성 기능을 사용할 수 없습니다. 프로그램을 다시 설치/실행해주세요. (구버전 실행파일일 수 있습니다)';
+    return;
+  }
+  statusEl.textContent = 'PDF 생성 중...';
+  try {
+    const html = buildSlidesHtmlDoc();
+    const get = (id) => document.getElementById(id).value.trim();
+    const fileName = (get('title') || '매물소개') + '.pdf';
+    const result = await window.api.generatePdf({ html, fileName });
+    statusEl.textContent = result.canceled ? 'PDF 저장이 취소되었습니다.' : '완료: ' + result.filePath + ' 저장됨';
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = 'PDF 생성 중 오류가 발생했습니다: ' + err.message;
   }
 });
 </script>

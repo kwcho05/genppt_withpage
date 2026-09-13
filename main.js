@@ -1,7 +1,11 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const { fetchListingData } = require('./listingFetcher');
 const { fetchAdminPhotos } = require('./adminPhotoFetcher');
+
+let mainWindow = null;
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -15,6 +19,10 @@ function createWindow() {
     }
   });
   win.loadFile('index.html');
+  mainWindow = win;
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+  });
 }
 
 app.whenReady().then(() => {
@@ -41,4 +49,41 @@ ipcMain.handle('fetch-listing', async (event, itemNo) => {
   }
 
   return { ...data, images, photoWarning };
+});
+
+// PPT와 동일한 구조/이미지로 만든 HTML을 PDF로 인쇄해서 저장한다.
+ipcMain.handle('generate-pdf', async (event, { html, fileName }) => {
+  const tmpFile = path.join(os.tmpdir(), `ppt-generator-pdf-${Date.now()}.html`);
+  fs.writeFileSync(tmpFile, html, 'utf-8');
+
+  const pdfWin = new BrowserWindow({ show: false, webPreferences: { offscreen: false } });
+  try {
+    await pdfWin.loadFile(tmpFile);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const pdfBuffer = await pdfWin.webContents.printToPDF({
+      printBackground: true,
+      landscape: false,
+      pageSize: { width: 254000, height: 142875 }, // 10in x 5.625in (microns)
+      margins: { top: 0, bottom: 0, left: 0, right: 0 }
+    });
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'PDF 저장',
+      defaultPath: fileName || '매물소개.pdf',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { canceled: true };
+    }
+
+    fs.writeFileSync(result.filePath, pdfBuffer);
+    return { canceled: false, filePath: result.filePath };
+  } finally {
+    pdfWin.destroy();
+    try {
+      fs.unlinkSync(tmpFile);
+    } catch (e) {}
+  }
 });
