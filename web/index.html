@@ -155,6 +155,30 @@
   #pdfBtn:hover { background: #ad8a1f; }
   #sampleBtn { background: #eef1f5; color: var(--navy); }
   #sampleBtn:hover { background: #e2e6ec; }
+  #refreshFilesBtn { background: #eef1f5; color: var(--navy); padding: 8px 14px; font-size: 13px; }
+  #refreshFilesBtn:hover { background: #e2e6ec; }
+  .file-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .file-row:last-child { border-bottom: none; }
+  .file-name { font-size: 13.5px; font-weight: 600; color: #222; }
+  .file-meta { font-size: 11.5px; color: var(--gray); }
+  .file-download {
+    flex-shrink: 0;
+    color: #fff;
+    background: var(--navy);
+    text-decoration: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+  }
+  .file-download:hover { background: #16283b; }
   #status { font-size: 13px; color: var(--gray); }
   .hint { font-size: 12px; color: var(--gray); margin-top: -6px; margin-bottom: 10px; }
   #rawText { width: 100%; min-height: 260px; font-size: 13px; line-height: 1.5; }
@@ -284,6 +308,15 @@
     <input type="file" id="photoInput" accept="image/*" multiple>
     <span id="photoCount" class="hint">0 / 7 장 등록됨</span>
     <div class="photo-thumb-grid" id="photoThumbGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>5. 저장된 파일 (서버 보관함, 최대 5개)</h2>
+    <p class="hint">PPT/PDF를 생성하면 내 컴퓨터로 다운로드됨과 동시에 서버(Vercel Blob)에도 자동 저장됩니다. 최대 5개까지 보관되며, 6번째 파일이 저장되면 가장 오래된 파일이 자동으로 삭제됩니다. 다른 기기에서도 여기서 골라 다운로드할 수 있습니다.</p>
+    <div class="row" style="margin-bottom:0;">
+      <button id="refreshFilesBtn" type="button">새로고침</button>
+    </div>
+    <ul id="fileList" style="list-style:none; padding:0; margin:12px 0 0;"></ul>
   </div>
 
 </div>
@@ -417,6 +450,70 @@ function getPhotosObject() {
   });
   return photos;
 }
+
+// ---------- 서버 저장소(Vercel Blob) ----------
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function uploadToBlob(blob, filename) {
+  const res = await fetch('/api/upload?filename=' + encodeURIComponent(filename), {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+    body: blob
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(text || ('업로드 실패 (' + res.status + ')'));
+  }
+  return res.json();
+}
+
+async function loadFileList() {
+  const listEl = document.getElementById('fileList');
+  listEl.innerHTML = '<li class="hint">불러오는 중...</li>';
+  try {
+    const res = await fetch('/api/files');
+    if (!res.ok) throw new Error('목록을 불러오지 못했습니다 (' + res.status + ')');
+    const data = await res.json();
+    const files = data.files || [];
+    if (files.length === 0) {
+      listEl.innerHTML = '<li class="hint">저장된 파일이 없습니다.</li>';
+      return;
+    }
+    listEl.innerHTML = '';
+    files.forEach((f) => {
+      const li = document.createElement('li');
+      li.className = 'file-row';
+      const name = f.pathname.split('/').pop();
+      const date = new Date(f.uploadedAt).toLocaleString('ko-KR');
+      const sizeKb = Math.round(f.size / 1024);
+      const info = document.createElement('div');
+      info.innerHTML = `<div class="file-name">${name}</div><div class="file-meta">${date} · ${sizeKb}KB</div>`;
+      const a = document.createElement('a');
+      a.href = f.url;
+      a.className = 'file-download';
+      a.textContent = '다운로드';
+      a.target = '_blank';
+      a.rel = 'noopener';
+      li.appendChild(info);
+      li.appendChild(a);
+      listEl.appendChild(li);
+    });
+  } catch (err) {
+    listEl.innerHTML = '<li class="hint">불러오기 실패: ' + err.message + '</li>';
+  }
+}
+
+document.getElementById('refreshFilesBtn').addEventListener('click', loadFileList);
+window.addEventListener('DOMContentLoaded', loadFileList);
 
 // ---------- 원문 자동 분석 ----------
 function decodeEntities(str) {
@@ -834,8 +931,17 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
 
   const fileName = (get('title') || '매물소개') + '.pptx';
   try {
-    await pptx.writeFile({ fileName });
-    statusEl.textContent = '완료: ' + fileName + ' 다운로드됨';
+    const blob = await pptx.write({ outputType: 'blob' });
+    downloadBlob(blob, fileName);
+    statusEl.textContent = fileName + ' 다운로드됨 — 서버에 저장 중...';
+    try {
+      await uploadToBlob(blob, fileName);
+      statusEl.textContent = '완료: ' + fileName + ' 다운로드 및 서버 저장 완료';
+      loadFileList();
+    } catch (uploadErr) {
+      console.error(uploadErr);
+      statusEl.textContent = fileName + ' 다운로드는 완료했지만 서버 저장에 실패했습니다: ' + uploadErr.message;
+    }
   } catch (err) {
     console.error(err);
     statusEl.textContent = '오류가 발생했습니다: ' + err.message;
@@ -1030,8 +1136,17 @@ document.getElementById('pdfBtn').addEventListener('click', async () => {
 
     const get = (id) => document.getElementById(id).value.trim();
     const fileName = (get('title') || '매물소개') + '.pdf';
-    pdf.save(fileName);
-    statusEl.textContent = '완료: ' + fileName + ' 다운로드됨';
+    const blob = pdf.output('blob');
+    downloadBlob(blob, fileName);
+    statusEl.textContent = fileName + ' 다운로드됨 — 서버에 저장 중...';
+    try {
+      await uploadToBlob(blob, fileName);
+      statusEl.textContent = '완료: ' + fileName + ' 다운로드 및 서버 저장 완료';
+      loadFileList();
+    } catch (uploadErr) {
+      console.error(uploadErr);
+      statusEl.textContent = fileName + ' 다운로드는 완료했지만 서버 저장에 실패했습니다: ' + uploadErr.message;
+    }
   } catch (err) {
     console.error(err);
     statusEl.textContent = 'PDF 생성 중 오류가 발생했습니다: ' + err.message;
