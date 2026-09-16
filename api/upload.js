@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
     }
 
     const blob = await put(filename, buffer, {
-      access: 'public',
+      access: 'private',
       contentType,
       addRandomSuffix: true
     });

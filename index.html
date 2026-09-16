@@ -492,17 +492,16 @@ async function loadFileList() {
     files.forEach((f) => {
       const li = document.createElement('li');
       li.className = 'file-row';
-      const name = f.pathname.split('/').pop();
+      const rawName = f.pathname.split('/').pop();
+      const name = rawName.replace(/-[A-Za-z0-9_-]{15,}(\.[^./]+)$/, '$1');
       const date = new Date(f.uploadedAt).toLocaleString('ko-KR');
       const sizeKb = Math.round(f.size / 1024);
       const info = document.createElement('div');
       info.innerHTML = `<div class="file-name">${name}</div><div class="file-meta">${date} · ${sizeKb}KB</div>`;
       const a = document.createElement('a');
-      a.href = f.url;
+      a.href = '/api/download?url=' + encodeURIComponent(f.url);
       a.className = 'file-download';
       a.textContent = '다운로드';
-      a.target = '_blank';
-      a.rel = 'noopener';
       li.appendChild(info);
       li.appendChild(a);
       listEl.appendChild(li);
