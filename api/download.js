@@ -19,7 +19,14 @@ module.exports = async (req, res) => {
         : {}
     });
     if (!upstream.ok || !upstream.body) {
-      res.status(502).json({ error: '파일을 가져오지 못했습니다.' });
+      res.status(502).json({
+        error: '파일을 가져오지 못했습니다.',
+        debug: req.query.debug ? {
+          hasToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+          tokenPrefix: process.env.BLOB_READ_WRITE_TOKEN ? process.env.BLOB_READ_WRITE_TOKEN.slice(0, 12) : null,
+          upstreamStatus: upstream.status
+        } : undefined
+      });
       return;
     }
 
