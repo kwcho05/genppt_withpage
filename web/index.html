@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>매물 PPT 생성기</title>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #1f3b57;
+    --gold: #c9a227;
+    --gray: #6b7280;
+    --border: #e2e5ea;
+    --bg: #f5f6f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Malgun Gothic", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: #222;
+  }
+  header {
+    background: var(--navy);
+    color: #fff;
+    padding: 24px 32px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; font-size: 13px; color: #cfd8e3; }
+  .wrap {
+    max-width: 980px;
+    margin: 24px auto 60px;
+    padding: 0 16px;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .card h2 {
+    font-size: 16px;
+    margin: 0 0 14px;
+    color: var(--navy);
+    border-bottom: 2px solid var(--navy);
+    padding-bottom: 8px;
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .field { flex: 1 1 220px; display: flex; flex-direction: column; gap: 4px; }
+  .field.full { flex-basis: 100%; }
+  label { font-size: 12.5px; color: var(--gray); font-weight: 600; }
+  input[type="text"], textarea, select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 44px; }
+  .table-fields .row { align-items: flex-end; }
+  #photoInput { margin-bottom: 6px; }
+  #photoCount { display: block; margin-bottom: 12px; }
+  .photo-thumb-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .photo-thumb {
+    position: relative;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fafbfc;
+    cursor: grab;
+    aspect-ratio: 4 / 3;
+  }
+  .photo-thumb.is-main { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,162,39,0.25); }
+  .photo-thumb.dragging { opacity: 0.4; }
+  .photo-thumb.drag-over { border-color: var(--navy); border-style: dashed; }
+  .photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+  }
+  .thumb-badge {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    background: rgba(31,59,87,0.85);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    z-index: 2;
+  }
+  .photo-thumb.is-main .thumb-badge { background: var(--gold); }
+  .thumb-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    line-height: 1;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 13px;
+    z-index: 2;
+  }
+  .thumb-remove:hover { background: rgba(190,40,40,0.85); }
+  .thumb-setmain {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    font-size: 10.5px;
+    padding: 3px 4px;
+    background: rgba(255,255,255,0.9);
+    color: var(--navy);
+    border-radius: 4px;
+    z-index: 2;
+  }
+  .thumb-setmain:hover { background: #fff; }
+  .actions {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-radius: 10px 10px 0 0;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  #generateBtn { background: var(--navy); color: #fff; }
+  #generateBtn:hover { background: #16283b; }
+  #pdfBtn { background: var(--gold); color: #fff; }
+  #pdfBtn:hover { background: #ad8a1f; }
+  #sampleBtn { background: #eef1f5; color: var(--navy); }
+  #sampleBtn:hover { background: #e2e6ec; }
+  #status { font-size: 13px; color: var(--gray); }
+  .hint { font-size: 12px; color: var(--gray); margin-top: -6px; margin-bottom: 10px; }
+  #rawText { width: 100%; min-height: 260px; font-size: 13px; line-height: 1.5; }
+  #parseBtn { background: var(--gold); color: #fff; }
+  #parseBtn:hover { background: #ad8a1f; }
+  #parseStatus { display: block; margin-top: 8px; font-size: 12.5px; color: var(--navy); white-space: pre-line; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>매물소개 PPT 생성기 - 해당 중개사무소 노출없음</h1>
+  <p>상세정보 입력 + 사진 업로드 7장 --&gt; PPT/PDF 생성</p>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>1. 매물 정보 붙여넣기 (자동 분석)</h2>
+    <p class="hint">네이버 부동산 스타일로 작성된 매물 설명 원문을 통째로 붙여넣고 "자동 분석하여 채우기"를 누르면 아래 항목들이 자동으로 채워집니다. 분석 후에도 아래에서 자유롭게 수정할 수 있습니다.</p>
+    <textarea id="rawText" placeholder="여기에 매물 설명 원문 전체를 붙여넣으세요"></textarea>
+    <div class="row" style="margin-top:10px;">
+      <button id="parseBtn" type="button">자동 분석하여 채우기</button>
+    </div>
+    <span id="parseStatus"></span>
+  </div>
+
+  <div class="card">
+    <h2>2. 표지 정보</h2>
+    <div class="row">
+      <div class="field full">
+        <label>제목</label>
+        <input type="text" id="title" placeholder="예: 평택 창고 임대">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field full">
+        <label>부제목 (주소 요약)</label>
+        <input type="text" id="subtitle" placeholder="예: 경기 평택시 서탄면 수월암리 200-22 가동 | 대지 3,139평">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>거래유형 (표지 좌측 라벨, 비워두면 "임대")</label>
+        <input type="text" id="dealType" placeholder="예: 임대, 월세, 매매">
+      </div>
+      <div class="field">
+        <label>대지</label>
+        <input type="text" id="landTag" placeholder="예: 대지 3,139평">
+      </div>
+      <div class="field">
+        <label>건물</label>
+        <input type="text" id="buildingTag" placeholder="예: 건물 141평">
+      </div>
+    </div>
+  </div>
+
+  <div class="card table-fields">
+    <h2>3. 매물 핵심정보</h2>
+    <div class="row">
+      <div class="field full">
+        <label>매물명 (소제목)</label>
+        <input type="text" id="propertyName" placeholder="예: 서탄면 수월암리 창고">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field full">
+        <label>소재지</label>
+        <input type="text" id="f_location" placeholder="예: 경기 평택시 서탄면 수월암리 200-22 가동">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>임대조건</label>
+        <input type="text" id="f_terms" placeholder="예: 보증금 2억원 / 월세 2,000만원">
+      </div>
+      <div class="field">
+        <label>면적</label>
+        <input type="text" id="f_area" placeholder="예: 토지 9,792㎡(2,962평) / 대지 10,376.86㎡(3,139평)">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>건축·연면적</label>
+        <input type="text" id="f_gfa" placeholder="예: 465㎡(141평) — 가동 100평 + 나동 41평">
+      </div>
+      <div class="field">
+        <label>층고 / 전력</label>
+        <input type="text" id="f_power" placeholder="예: 가동 6m·10kW / 나동 4m·5kW">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>용도지역 / 지목</label>
+        <input type="text" id="f_zone" placeholder="예: 계획관리지역 / 잡종지">
+      </div>
+      <div class="field">
+        <label>주용도</label>
+        <input type="text" id="f_use" placeholder="예: 자원순환관련시설 및 1종근린생활시설(휴게음식점)">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>방향 / 주차</label>
+        <input type="text" id="f_direction" placeholder="예: 남동향(주된 출입구 기준) / 가능(총 1대)">
+      </div>
+      <div class="field">
+        <label>부대시설</label>
+        <input type="text" id="f_facility" placeholder="예: 지하수 · 정화조 · 내부 화장실 완비">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>입주/승인</label>
+        <input type="text" id="f_move" placeholder="예: 즉시입주 가능 · 사용승인 2023-08-25(신축)">
+      </div>
+      <div class="field full">
+        <label>특징 및 장점 (한 줄에 하나씩 입력, 슬라이드의 회색 박스에 자동으로 표시됩니다)</label>
+        <textarea id="f_feature" rows="4" placeholder="예:&#10;고전력&#10;즉시입주 가능&#10;고덕삼성 도보 10분"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4. 사진 업로드</h2>
+    <p class="hint">사진을 한 번에 최대 7장까지 선택하세요. 첫 번째 썸네일이 대표사진(표지용)으로 사용되며, 썸네일을 드래그하거나 "대표로 지정" 버튼을 눌러 순서와 대표사진을 자유롭게 바꿀 수 있습니다.</p>
+    <input type="file" id="photoInput" accept="image/*" multiple>
+    <span id="photoCount" class="hint">0 / 7 장 등록됨</span>
+    <div class="photo-thumb-grid" id="photoThumbGrid"></div>
+  </div>
+
+</div>
+
+<div class="actions">
+  <button id="generateBtn">PPT 생성 (다운로드)</button>
+  <button id="pdfBtn">PDF 생성 (다운로드)</button>
+  <button id="sampleBtn">샘플 데이터 채우기</button>
+  <span id="status"></span>
+</div>
+
+<script>
+const MAX_PHOTOS = 7;
+let photoList = []; // ordered [{ uid, dataURL }], index 0 = 대표사진
+
+function renderThumbs() {
+  const grid = document.getElementById('photoThumbGrid');
+  grid.innerHTML = '';
+  photoList.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'photo-thumb' + (idx === 0 ? ' is-main' : '');
+    div.draggable = true;
+    div.dataset.uid = item.uid;
+
+    const badge = document.createElement('span');
+    badge.className = 'thumb-badge';
+    badge.textContent = idx === 0 ? '대표' : String(idx + 1);
+    div.appendChild(badge);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'thumb-remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = '삭제';
+    removeBtn.addEventListener('click', () => {
+      photoList = photoList.filter(p => p.uid !== item.uid);
+      renderThumbs();
+    });
+    div.appendChild(removeBtn);
+
+    const img = document.createElement('img');
+    img.src = item.dataURL;
+    div.appendChild(img);
+
+    if (idx !== 0) {
+      const setMainBtn = document.createElement('button');
+      setMainBtn.type = 'button';
+      setMainBtn.className = 'thumb-setmain';
+      setMainBtn.textContent = '★ 대표로 지정';
+      setMainBtn.addEventListener('click', () => {
+        const i = photoList.findIndex(p => p.uid === item.uid);
+        const [moved] = photoList.splice(i, 1);
+        photoList.unshift(moved);
+        renderThumbs();
+      });
+      div.appendChild(setMainBtn);
+    }
+
+    div.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.uid);
+      div.classList.add('dragging');
+    });
+    div.addEventListener('dragend', () => div.classList.remove('dragging'));
+    div.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      div.classList.add('drag-over');
+    });
+    div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+    div.addEventListener('drop', (e) => {
+      e.preventDefault();
+      div.classList.remove('drag-over');
+      const srcUid = e.dataTransfer.getData('text/plain');
+      const targetUid = item.uid;
+      if (srcUid === targetUid) return;
+      const srcIdx = photoList.findIndex(p => p.uid === srcUid);
+      const targetIdx = photoList.findIndex(p => p.uid === targetUid);
+      if (srcIdx === -1 || targetIdx === -1) return;
+      const [moved] = photoList.splice(srcIdx, 1);
+      photoList.splice(targetIdx, 0, moved);
+      renderThumbs();
+    });
+
+    grid.appendChild(div);
+  });
+
+  document.getElementById('photoCount').textContent =
+    photoList.length + ' / ' + MAX_PHOTOS + ' 장 등록됨' +
+    (photoList.length ? ' — 드래그하거나 "★ 대표로 지정"을 눌러 순서를 바꿀 수 있습니다.' : '');
+}
+
+document.getElementById('photoInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  e.target.value = ''; // 같은 파일을 다시 선택할 수 있도록 초기화
+  if (files.length === 0) return;
+
+  const remaining = MAX_PHOTOS - photoList.length;
+  if (remaining <= 0) {
+    alert('사진은 최대 ' + MAX_PHOTOS + '장까지 등록할 수 있습니다.');
+    return;
+  }
+  const toAdd = files.slice(0, remaining);
+  if (files.length > toAdd.length) {
+    alert('최대 ' + MAX_PHOTOS + '장까지만 등록됩니다. ' + toAdd.length + '장만 추가되었습니다.');
+  }
+
+  const newItems = new Array(toAdd.length);
+  let loadedCount = 0;
+  toAdd.forEach((file, idx) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      newItems[idx] = {
+        uid: 'ph_' + Date.now() + '_' + idx + '_' + Math.random().toString(36).slice(2),
+        dataURL: reader.result
+      };
+      loadedCount++;
+      if (loadedCount === toAdd.length) {
+        photoList.push(...newItems);
+        renderThumbs();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+function getPhotosObject() {
+  const photos = {};
+  photoList.forEach((item, idx) => {
+    const key = idx === 0 ? 'main' : 'p' + idx;
+    photos[key] = item.dataURL;
+  });
+  return photos;
+}
+
+// ---------- 원문 자동 분석 ----------
+function decodeEntities(str) {
+  return str
+    .replace(/&middot;/g, '·')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}
+
+function classifyKey(rawLabel) {
+  const k = rawLabel.replace(/\s/g, '');
+  if (k.includes('매물번호')) return null;
+  if (k.includes('주소')) return 'address';
+  if (k.includes('매물종류') || k.includes('거래형태')) return 'dealtype';
+  if (k.includes('가격')) return 'price';
+  if (k === '면적') return 'area';
+  if (k.includes('층수')) return 'floors';
+  if (k.includes('층고')) return 'height';
+  if (k.includes('전기') || k.includes('전력')) return 'power';
+  if (k.includes('호이스트')) return 'hoist';
+  if (k.includes('방향')) return 'direction';
+  if (k.includes('주차')) return 'parking';
+  if (k.includes('용도지역')) return 'zone';
+  if (k.includes('지목')) return 'landcat';
+  if (k.includes('주용도')) return 'usage';
+  if (k.includes('입주')) return 'movein';
+  if (k.includes('사용승인')) return 'approval';
+  return null;
+}
+
+function prettyPrice(s) {
+  if (!s) return s;
+  return s
+    .replace(/\s*\/\s*/g, ' / ')
+    .replace(/보증금\s*/, '보증금 ')
+    .replace(/월세\s*/, '월세 ')
+    .replace(/전세\s*/, '전세 ')
+    .replace(/매매가\s*/, '매매가 ');
+}
+
+function pyeongFrom(str) {
+  if (!str) return '';
+  const m = str.match(/\(([\d,.]+)\s*평\)/);
+  return m ? m[1] : '';
+}
+
+function normalizeForDedupe(s) {
+  return s.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function parseListingText(raw) {
+  const structured = {};
+  const featureLines = [];
+  const facilityLines = [];
+  let headline = '';
+  let motNumber = '';
+
+  const facilityKeywordRe = /(정화조|화장실|콤프레셔|지하수|크레인|호이스트)/;
+  const structuredRe = /^[✅]️?\s*([^:：]+?)\s*[:：]\s*(.*)$/;
+
+  const lines = decodeEntities(raw).split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (/^-{5,}$/.test(line)) break; // 이후는 중개사무소 안내문 등 -> 무시
+
+    const motMatch = line.match(/매물번호\s*[:：]\s*(\S+)/);
+    if (motMatch) { motNumber = motMatch[1]; continue; }
+
+    if (/명예부동산\.com|검색\s*하시면|네이버의\s*대부분\s*매물/.test(line)) continue;
+    if (/^[✍]/.test(line) || /^상세설명$/.test(line)) continue;
+
+    const structMatch = line.match(structuredRe);
+    if (structMatch) {
+      const key = classifyKey(structMatch[1]);
+      if (key) { structured[key] = structMatch[2].trim(); continue; }
+    }
+
+    const bareHead = line.replace(/^[✅⭐]️?\s*/, '').trim();
+    if (['특징', '장점', '특징및장점', '특징 및 장점'].includes(bareHead)) continue;
+
+    if (!headline) { headline = line.replace(/^-+\s*/, ''); continue; }
+
+    if (facilityKeywordRe.test(line)) {
+      facilityLines.push(line.replace(/^-+\s*/, ''));
+    } else {
+      featureLines.push(line.replace(/^-+\s*/, ''));
+    }
+  }
+
+  if (structured.hoist) facilityLines.push('호이스트 ' + structured.hoist);
+
+  // dedupe (대소문자/공백 무시, 순서 유지)
+  function dedupe(arr) {
+    const seen = new Set();
+    const out = [];
+    for (const item of arr) {
+      const key = normalizeForDedupe(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+    }
+    return out;
+  }
+
+  const area = structured.area || '';
+  const areaParts = area.split('/').map(s => s.trim()).filter(Boolean);
+  const areaMain = areaParts.filter(p => /^(토지|대지)/.test(p));
+  const areaGfa = areaParts.filter(p => /^(건축|연)/.test(p));
+  const landPart = areaParts.find(p => /^대지/.test(p)) || areaParts.find(p => /^토지/.test(p)) || '';
+  const buildPart = areaParts.find(p => /^건축/.test(p)) || areaParts.find(p => /^연/.test(p)) || '';
+  const landPyeong = pyeongFrom(landPart);
+  const buildPyeong = pyeongFrom(buildPart);
+
+  const dealTypeFull = structured.dealtype || '';
+  const dealTypeShort = dealTypeFull.includes('/') ? dealTypeFull.split('/').pop().trim() : dealTypeFull;
+
+  const result = {
+    motNumber,
+    title: headline,
+    subtitle: [structured.address, landPyeong ? ('대지 ' + landPyeong + '평') : ''].filter(Boolean).join(' | '),
+    dealType: dealTypeShort,
+    landTag: landPyeong ? ('대지 ' + landPyeong + '평') : '',
+    buildingTag: buildPyeong ? ('건물 ' + buildPyeong + '평') : '',
+    propertyName: headline,
+    f_location: structured.address || '',
+    f_terms: prettyPrice(structured.price || ''),
+    f_area: areaMain.join(' / '),
+    f_gfa: areaGfa.join(' / '),
+    f_power: [structured.height, structured.power].filter(Boolean).join(' · '),
+    f_zone: [structured.zone, structured.landcat].filter(Boolean).join(' / '),
+    f_use: structured.usage || '',
+    f_direction: [structured.direction, structured.parking].filter(Boolean).join(' / '),
+    f_facility: dedupe(facilityLines).join(' · '),
+    f_move: [structured.movein, structured.approval ? ('사용승인 ' + structured.approval) : ''].filter(Boolean).join(' · '),
+    f_feature: dedupe(featureLines).join('\n')
+  };
+  return result;
+}
+
+document.getElementById('parseBtn').addEventListener('click', () => {
+  const raw = document.getElementById('rawText').value;
+  const parseStatusEl = document.getElementById('parseStatus');
+  if (!raw.trim()) {
+    parseStatusEl.textContent = '분석할 원문을 먼저 붙여넣어 주세요.';
+    return;
+  }
+  try {
+    const r = parseListingText(raw);
+    const v = (id, val) => { if (val) document.getElementById(id).value = val; };
+    v('title', r.title);
+    v('subtitle', r.subtitle);
+    v('dealType', r.dealType);
+    v('landTag', r.landTag);
+    v('buildingTag', r.buildingTag);
+    v('propertyName', r.propertyName);
+    v('f_location', r.f_location);
+    v('f_terms', r.f_terms);
+    v('f_area', r.f_area);
+    v('f_gfa', r.f_gfa);
+    v('f_power', r.f_power);
+    v('f_zone', r.f_zone);
+    v('f_use', r.f_use);
+    v('f_direction', r.f_direction);
+    v('f_facility', r.f_facility);
+    v('f_move', r.f_move);
+    v('f_feature', r.f_feature);
+    parseStatusEl.textContent = '분석 완료' + (r.motNumber ? ` (매물번호 ${r.motNumber} 인식됨)` : '') + ' — 아래 항목을 확인하고 필요하면 직접 수정하세요.';
+  } catch (err) {
+    console.error(err);
+    parseStatusEl.textContent = '분석 중 오류가 발생했습니다: ' + err.message;
+  }
+});
+
+document.getElementById('sampleBtn').addEventListener('click', () => {
+  const v = (id, val) => document.getElementById(id).value = val;
+  v('title', '평택 창고 임대');
+  v('subtitle', '경기 평택시 서탄면 수월암리 200-22 가동 | 대지 3,139평');
+  v('dealType', '월세');
+  v('landTag', '대지 3,139평');
+  v('buildingTag', '건물 141평');
+  v('propertyName', '서탄면 수월암리 창고');
+  v('f_location', '경기 평택시 서탄면 수월암리 200-22 가동');
+  v('f_terms', '보증금 2억원 / 월세 2,000만원');
+  v('f_area', '토지 9,792㎡(2,962평) / 대지 10,376.86㎡(3,139평)');
+  v('f_gfa', '465㎡(141평) — 가동 100평 + 나동 41평');
+  v('f_power', '가동 6m·10kW / 나동 4m·5kW');
+  v('f_zone', '계획관리지역 / 잡종지');
+  v('f_use', '자원순환관련시설 및 1종근린생활시설(휴게음식점)');
+  v('f_direction', '남동향(주된 출입구 기준) / 가능(총 1대)');
+  v('f_facility', '지하수 · 정화조 · 내부 화장실 완비');
+  v('f_move', '즉시입주 가능 · 사용승인 2023-08-25(신축)');
+  v('f_feature', '고전력');
+  document.getElementById('status').textContent = '샘플 데이터를 채웠습니다.';
+});
+
+document.getElementById('generateBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('status');
+  statusEl.textContent = 'PPT 생성 중...';
+
+  const get = (id) => document.getElementById(id).value.trim();
+  // 로고 색상 팔레트: 차콜(텍스트) · 코랄(포인트) · 골드(포인트) · 라이트그레이(배경)
+  const CHARCOAL = '3A3A3A';
+  const CORAL = 'D9764A';
+  const GOLD = 'E3AE43';
+  const GRAY = '6B7280';
+  const LIGHT = 'EDEDED';
+  const BORDER = 'DCDCDC';
+
+  const photos = getPhotosObject();
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_16x9'; // 10 x 5.63 in
+
+  function addBrandBar(slide) {
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.12, h: 2.815, fill: { color: CORAL }, line: { type: 'none' } });
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 2.815, w: 0.12, h: 2.815, fill: { color: GOLD }, line: { type: 'none' } });
+  }
+
+  // ---------- Slide 1: 표지 ----------
+  let s1 = pptx.addSlide();
+  s1.background = { color: 'FFFFFF' };
+  addBrandBar(s1);
+
+  s1.addText(get('title') || '매물 제목', {
+    x: 0.4, y: 0.55, w: 4.3, h: 0.9,
+    fontSize: 28, bold: true, color: CHARCOAL, fontFace: 'Malgun Gothic'
+  });
+  s1.addShape(pptx.ShapeType.rect, { x: 0.4, y: 1.42, w: 0.6, h: 0.06, fill: { color: CORAL }, line: { type: 'none' } });
+  s1.addShape(pptx.ShapeType.rect, { x: 1.04, y: 1.42, w: 0.3, h: 0.06, fill: { color: GOLD }, line: { type: 'none' } });
+  s1.addText(get('subtitle') || '주소 요약을 입력하세요', {
+    x: 0.4, y: 1.55, w: 4.3, h: 0.5,
+    fontSize: 12.5, color: GRAY, fontFace: 'Malgun Gothic'
+  });
+
+  // 1행: [임대] + 임대조건 값 / 2행: 건물 + 대지 (가로 배열)
+  const dealLabel = get('dealType') || '임대';
+  const termsValue = get('f_terms');
+  const buildingTag = get('buildingTag');
+  const landTag = get('landTag');
+  const rowY1 = 2.15, rowY2 = 2.8, chipH = 0.55, rowW = 4.3, gap = 0.15;
+  const dealW = 1.3, termsW = rowW - dealW - gap;
+  const halfW = (rowW - gap) / 2;
+
+  s1.addShape(pptx.ShapeType.roundRect, {
+    x: 0.4, y: rowY1, w: dealW, h: chipH, rectRadius: 0.08,
+    fill: { color: CORAL }, line: { type: 'none' }
+  });
+  s1.addText(dealLabel, {
+    x: 0.4, y: rowY1, w: dealW, h: chipH,
+    align: 'center', valign: 'middle', fontSize: 13, bold: true, color: 'FFFFFF', fontFace: 'Malgun Gothic'
+  });
+
+  if (termsValue) {
+    s1.addShape(pptx.ShapeType.roundRect, {
+      x: 0.4 + dealW + gap, y: rowY1, w: termsW, h: chipH, rectRadius: 0.08,
+      fill: { color: LIGHT }, line: { color: CORAL, width: 1 }
+    });
+    s1.addText(termsValue, {
+      x: 0.4 + dealW + gap + 0.1, y: rowY1, w: termsW - 0.2, h: chipH,
+      align: 'center', valign: 'middle', fontSize: termsValue.length > 16 ? 9.5 : 11.5,
+      bold: true, color: CHARCOAL, fontFace: 'Malgun Gothic'
+    });
+  }
+
+  [buildingTag, landTag].forEach((tag, i) => {
+    if (!tag) return;
+    const tx = 0.4 + i * (halfW + gap);
+    s1.addShape(pptx.ShapeType.roundRect, {
+      x: tx, y: rowY2, w: halfW, h: chipH, rectRadius: 0.08,
+      fill: { color: LIGHT }, line: { color: GOLD, width: 1 }
+    });
+    s1.addText(tag, {
+      x: tx, y: rowY2, w: halfW, h: chipH,
+      align: 'center', valign: 'middle', fontSize: 12.5, bold: true, color: CHARCOAL, fontFace: 'Malgun Gothic'
+    });
+  });
+
+  const mainImgBox = { x: 5.0, y: 0.4, w: 4.6, h: 4.83 };
+  if (photos.main) {
+    s1.addImage({ data: photos.main, x: mainImgBox.x, y: mainImgBox.y, w: mainImgBox.w, h: mainImgBox.h,
+      sizing: { type: 'cover', w: mainImgBox.w, h: mainImgBox.h } });
+  } else {
+    s1.addShape(pptx.ShapeType.rect, { ...mainImgBox, fill: { color: LIGHT }, line: { color: BORDER, width: 1 } });
+    s1.addText('📷 대표사진 삽입', { ...mainImgBox, align: 'center', valign: 'middle', fontSize: 14, color: GRAY });
+  }
+
+  // ---------- Slide 2: 매물 핵심정보 ----------
+  let s2 = pptx.addSlide();
+  addBrandBar(s2);
+  s2.addText('매물 핵심정보', { x: 0.4, y: 0.25, w: 9.2, h: 0.45, fontSize: 20, bold: true, color: CHARCOAL, fontFace: 'Malgun Gothic' });
+  s2.addText(get('propertyName') || '매물명', { x: 0.4, y: 0.68, w: 9.2, h: 0.3, fontSize: 12.5, italic: true, color: GRAY, fontFace: 'Malgun Gothic' });
+
+  const rows = [
+    ['소재지', get('f_location')],
+    ['임대조건', get('f_terms')],
+    ['면적', get('f_area')],
+    ['건축·연면적', get('f_gfa')],
+    ['층고 / 전력', get('f_power')],
+    ['용도지역 / 지목', get('f_zone')],
+    ['주용도', get('f_use')],
+    ['방향 / 주차', get('f_direction')],
+    ['부대시설', get('f_facility')],
+    ['입주/승인', get('f_move')]
+  ];
+
+  const tableRows = [
+    [
+      { text: '구분', options: { bold: true, color: 'FFFFFF', fill: { color: CHARCOAL }, align: 'center' } },
+      { text: '내용', options: { bold: true, color: 'FFFFFF', fill: { color: CHARCOAL }, align: 'center' } }
+    ],
+    ...rows.map(([label, value]) => [
+      { text: label, options: { bold: true, color: CHARCOAL, fill: { color: LIGHT }, align: 'left' } },
+      { text: value || '-', options: { color: '333333', align: 'left' } }
+    ])
+  ];
+
+  s2.addTable(tableRows, {
+    x: 0.4, y: 1.15, w: 9.2,
+    colW: [2.0, 7.2],
+    fontSize: 9.5,
+    fontFace: 'Malgun Gothic',
+    border: { type: 'solid', color: BORDER, pt: 0.75 },
+    valign: 'middle',
+    margin: [2, 5, 2, 5],
+    autoPage: false
+  });
+
+  // 특징 및 장점: 회색 박스 안에 표시. 항목이 많으면 2단으로 나누고, 그래도 넘치면 글씨를 줄여 박스를 넘지 않게 함
+  const rawFeatureText = document.getElementById('f_feature').value;
+  const featureItems = [];
+  const seenFeature = new Set();
+  rawFeatureText.split(/\r?\n/).map(s => s.trim()).filter(Boolean).forEach(item => {
+    const key = item.replace(/\s+/g, ' ').toLowerCase();
+    if (seenFeature.has(key)) return;
+    seenFeature.add(key);
+    featureItems.push(item);
+  });
+
+  if (featureItems.length > 0) {
+    const boxX = 0.4, boxY = 3.95, boxW = 9.2, boxH = 1.55;
+    s2.addShape(pptx.ShapeType.roundRect, {
+      x: boxX, y: boxY, w: boxW, h: boxH, rectRadius: 0.06,
+      fill: { color: LIGHT }, line: { color: BORDER, width: 1 }
+    });
+    s2.addShape(pptx.ShapeType.rect, { x: boxX, y: boxY, w: 0.06, h: boxH, fill: { color: CORAL }, line: { type: 'none' } });
+    s2.addText('특징 및 장점', {
+      x: boxX + 0.15, y: boxY + 0.08, w: boxW - 0.3, h: 0.24,
+      fontSize: 11, bold: true, color: CHARCOAL, fontFace: 'Malgun Gothic'
+    });
+
+    const contentX = boxX + 0.15, contentY = boxY + 0.34, contentW = boxW - 0.3, contentH = boxH - 0.42;
+    const useTwoCols = featureItems.length >= 5;
+    const gap = 0.2;
+    const colW = useTwoCols ? (contentW - gap) / 2 : contentW;
+
+    function linesNeeded(items, w, fs) {
+      const charW = fs * 0.62 / 72;
+      const charsPerLine = Math.max(8, Math.floor(w / charW));
+      let total = 0;
+      items.forEach(item => { total += Math.max(1, Math.ceil((item.length + 2) / charsPerLine)); });
+      return total;
+    }
+
+    function fitFontSize(colItemGroups, w, h) {
+      for (let fs = 11; fs >= 6; fs -= 0.5) {
+        const lineH = fs * 1.35 / 72;
+        const maxLines = Math.floor(h / lineH);
+        const fits = colItemGroups.every(group => linesNeeded(group, w, fs) <= maxLines);
+        if (fits) return fs;
+      }
+      return 6;
+    }
+
+    const colGroups = useTwoCols
+      ? [featureItems.slice(0, Math.ceil(featureItems.length / 2)), featureItems.slice(Math.ceil(featureItems.length / 2))]
+      : [featureItems];
+
+    const fitSize = fitFontSize(colGroups, colW, contentH);
+
+    colGroups.forEach((group, i) => {
+      const x = contentX + i * (colW + gap);
+      s2.addText(
+        group.map(item => ({ text: item, options: { bullet: { code: '25CF', indent: 10 }, breakLine: true } })),
+        {
+          x, y: contentY, w: colW, h: contentH,
+          fontSize: fitSize, color: '333333', fontFace: 'Malgun Gothic',
+          valign: 'top', lineSpacingMultiple: 1.05, autoFit: false
+        }
+      );
+    });
+  }
+
+  // ---------- Slide 3: 매물 사진 ----------
+  let s3 = pptx.addSlide();
+  addBrandBar(s3);
+  s3.addText('매물 사진', { x: 0.4, y: 0.3, w: 9.2, h: 0.5, fontSize: 22, bold: true, color: CHARCOAL, fontFace: 'Malgun Gothic' });
+
+  const galleryW = (9.2 - 2 * 0.15) / 3;
+  const galleryH = (5.63 - 1.0 - 0.4 - 0.15) / 2;
+  const gStartX = 0.4, gStartY = 1.0;
+  for (let i = 0; i < 6; i++) {
+    const row = Math.floor(i / 3);
+    const col = i % 3;
+    const x = gStartX + col * (galleryW + 0.15);
+    const y = gStartY + row * (galleryH + 0.15);
+    const key = 'p' + (i + 1);
+    if (photos[key]) {
+      s3.addImage({ data: photos[key], x, y, w: galleryW, h: galleryH,
+        sizing: { type: 'cover', w: galleryW, h: galleryH } });
+    } else {
+      s3.addShape(pptx.ShapeType.rect, { x, y, w: galleryW, h: galleryH, fill: { color: LIGHT }, line: { color: BORDER, width: 1 } });
+      s3.addText(`📷 사진 ${i + 2} 삽입`, { x, y, w: galleryW, h: galleryH, align: 'center', valign: 'middle', fontSize: 12, color: GRAY });
+    }
+  }
+
+  const fileName = (get('title') || '매물소개') + '.pptx';
+  try {
+    await pptx.writeFile({ fileName });
+    statusEl.textContent = '완료: ' + fileName + ' 다운로드됨';
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = '오류가 발생했습니다: ' + err.message;
+  }
+});
+
+// ---------- PDF 생성 (PPT와 동일한 구조/이미지, 브라우저에서 직접 렌더링) ----------
+function buildSlideDivsArray() {
+  const get = (id) => document.getElementById(id).value.trim();
+  const CHARCOAL = '#3A3A3A';
+  const CORAL = '#D9764A';
+  const GOLD = '#E3AE43';
+  const GRAY = '#6B7280';
+  const LIGHT = '#EDEDED';
+  const BORDER = '#DCDCDC';
+  const IN = 96; // 1inch = 96px (PDF 페이지 크기와 동일 스케일)
+  const PAGE_W = 10 * IN;
+  const PAGE_H = 5.625 * IN;
+
+  const photos = getPhotosObject();
+  const dealLabel = get('dealType') || '임대';
+  const termsValue = get('f_terms');
+  const buildingTag = get('buildingTag');
+  const landTag = get('landTag');
+
+  const rows = [
+    ['소재지', get('f_location')],
+    ['임대조건', get('f_terms')],
+    ['면적', get('f_area')],
+    ['건축·연면적', get('f_gfa')],
+    ['층고 / 전력', get('f_power')],
+    ['용도지역 / 지목', get('f_zone')],
+    ['주용도', get('f_use')],
+    ['방향 / 주차', get('f_direction')],
+    ['부대시설', get('f_facility')],
+    ['입주/승인', get('f_move')]
+  ];
+
+  const rawFeatureText = document.getElementById('f_feature').value;
+  const featureItems = [];
+  const seenFeature = new Set();
+  rawFeatureText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).forEach((item) => {
+    const key = item.replace(/\s+/g, ' ').toLowerCase();
+    if (seenFeature.has(key)) return;
+    seenFeature.add(key);
+    featureItems.push(item);
+  });
+  const useTwoCols = featureItems.length >= 5;
+
+  const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const brandBar = `
+    <div style="position:absolute;left:0;top:0;width:${0.12 * IN}px;height:${2.815 * IN}px;background:${CORAL};"></div>
+    <div style="position:absolute;left:0;top:${2.815 * IN}px;width:${0.12 * IN}px;height:${2.815 * IN}px;background:${GOLD};"></div>
+  `;
+
+  // ---- Slide 1: 표지 ----
+  const mainImgHtml = photos.main
+    ? `<img src="${photos.main}" style="width:100%;height:100%;object-fit:cover;display:block;">`
+    : `<div style="width:100%;height:100%;background:${LIGHT};border:1px solid ${BORDER};display:flex;align-items:center;justify-content:center;color:${GRAY};font-size:14px;box-sizing:border-box;">대표사진 삽입</div>`;
+
+  const termsChip = termsValue
+    ? `<div style="position:absolute;left:${(0.4 + 1.3 + 0.15) * IN}px;top:${2.15 * IN}px;width:${(4.3 - 1.3 - 0.15) * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${LIGHT};border:1px solid ${CORAL};display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:0 8px;">
+        <span style="font-size:${termsValue.length > 16 ? 9.5 : 11.5}pt;font-weight:700;color:${CHARCOAL};text-align:center;">${esc(termsValue)}</span>
+      </div>`
+    : '';
+
+  const halfW = (4.3 - 0.15) / 2;
+  const tagsHtml = [buildingTag, landTag].map((tag, i) => {
+    if (!tag) return '';
+    const tx = (0.4 + i * (halfW + 0.15)) * IN;
+    return `<div style="position:absolute;left:${tx}px;top:${2.8 * IN}px;width:${halfW * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${LIGHT};border:1px solid ${GOLD};display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+      <span style="font-size:12.5pt;font-weight:700;color:${CHARCOAL};">${esc(tag)}</span>
+    </div>`;
+  }).join('');
+
+  const slide1 = `
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;font-family:'Malgun Gothic',sans-serif;">
+    ${brandBar}
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.55 * IN}px;width:${4.3 * IN}px;font-size:21pt;font-weight:700;color:${CHARCOAL};">${esc(get('title') || '매물 제목')}</div>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${1.42 * IN}px;width:${0.6 * IN}px;height:6px;background:${CORAL};"></div>
+    <div style="position:absolute;left:${1.04 * IN}px;top:${1.42 * IN}px;width:${0.3 * IN}px;height:6px;background:${GOLD};"></div>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${1.55 * IN}px;width:${4.3 * IN}px;font-size:9.5pt;color:${GRAY};">${esc(get('subtitle') || '주소 요약을 입력하세요')}</div>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${2.15 * IN}px;width:${1.3 * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${CORAL};display:flex;align-items:center;justify-content:center;">
+      <span style="font-size:13pt;font-weight:700;color:#fff;">${esc(dealLabel)}</span>
+    </div>
+    ${termsChip}
+    ${tagsHtml}
+    <div style="position:absolute;left:${5.0 * IN}px;top:${0.4 * IN}px;width:${4.6 * IN}px;height:${4.83 * IN}px;">${mainImgHtml}</div>
+  </div>`;
+
+  // ---- Slide 2: 매물 핵심정보 ----
+  const tableRowsHtml = rows.map(([label, value]) => `
+    <tr>
+      <td style="background:${LIGHT};color:${CHARCOAL};font-weight:700;padding:2px 8px;border:0.75px solid ${BORDER};width:${2.0 * IN}px;">${esc(label)}</td>
+      <td style="color:#333;padding:2px 8px;border:0.75px solid ${BORDER};">${esc(value) || '-'}</td>
+    </tr>`).join('');
+
+  const featureBoxHtml = featureItems.length > 0 ? `
+    <div style="position:absolute;left:${0.4 * IN}px;top:${3.95 * IN}px;width:${9.2 * IN}px;height:${1.55 * IN}px;border-radius:6px;background:${LIGHT};border:1px solid ${BORDER};box-sizing:border-box;overflow:hidden;">
+      <div style="position:absolute;left:0;top:0;width:6px;height:100%;background:${CORAL};"></div>
+      <div style="padding:8px 15px 0 21px;font-size:11pt;font-weight:700;color:${CHARCOAL};">특징 및 장점</div>
+      <div style="padding:4px 15px 8px 21px;font-size:9.5pt;color:#333;column-count:${useTwoCols ? 2 : 1};column-gap:20px;">
+        ${featureItems.map((item) => `<div style="break-inside:avoid;line-height:1.35;">● ${esc(item)}</div>`).join('')}
+      </div>
+    </div>` : '';
+
+  const slide2 = `
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;font-family:'Malgun Gothic',sans-serif;">
+    ${brandBar}
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.25 * IN}px;width:${9.2 * IN}px;font-size:15pt;font-weight:700;color:${CHARCOAL};">매물 핵심정보</div>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.68 * IN}px;width:${9.2 * IN}px;font-size:9.5pt;font-style:italic;color:${GRAY};">${esc(get('propertyName') || '매물명')}</div>
+    <table style="position:absolute;left:${0.4 * IN}px;top:${1.15 * IN}px;width:${9.2 * IN}px;border-collapse:collapse;table-layout:fixed;font-size:9pt;line-height:1.15;font-family:'Malgun Gothic',sans-serif;">
+      <tr>
+        <td style="background:${CHARCOAL};color:#fff;font-weight:700;text-align:center;padding:2px 8px;border:0.75px solid ${BORDER};">구분</td>
+        <td style="background:${CHARCOAL};color:#fff;font-weight:700;text-align:center;padding:2px 8px;border:0.75px solid ${BORDER};">내용</td>
+      </tr>
+      ${tableRowsHtml}
+    </table>
+    ${featureBoxHtml}
+  </div>`;
+
+  // ---- Slide 3: 매물 사진 ----
+  const galleryW = (9.2 - 2 * 0.15) / 3;
+  const galleryH = (5.63 - 1.0 - 0.4 - 0.15) / 2;
+  let galleryCells = '';
+  for (let i = 0; i < 6; i++) {
+    const row = Math.floor(i / 3);
+    const col = i % 3;
+    const x = (0.4 + col * (galleryW + 0.15)) * IN;
+    const y = (1.0 + row * (galleryH + 0.15)) * IN;
+    const key = 'p' + (i + 1);
+    const cellStyle = `position:absolute;left:${x}px;top:${y}px;width:${galleryW * IN}px;height:${galleryH * IN}px;`;
+    if (photos[key]) {
+      galleryCells += `<div style="${cellStyle}"><img src="${photos[key]}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>`;
+    } else {
+      galleryCells += `<div style="${cellStyle}background:${LIGHT};border:1px solid ${BORDER};box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:${GRAY};font-size:9pt;">사진 ${i + 2} 삽입</div>`;
+    }
+  }
+
+  const slide3 = `
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;font-family:'Malgun Gothic',sans-serif;">
+    ${brandBar}
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.3 * IN}px;width:${9.2 * IN}px;font-size:16pt;font-weight:700;color:${CHARCOAL};">매물 사진</div>
+    ${galleryCells}
+  </div>`;
+
+  return [slide1, slide2, slide3];
+}
+
+document.getElementById('pdfBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('status');
+  const pdfBtn = document.getElementById('pdfBtn');
+  if (!window.jspdf || !window.html2canvas) {
+    statusEl.textContent = 'PDF 생성 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침 해주세요.';
+    return;
+  }
+
+  statusEl.textContent = 'PDF 생성 중... (사진이 많으면 시간이 걸릴 수 있습니다)';
+  pdfBtn.disabled = true;
+
+  let container = null;
+  try {
+    const slides = buildSlideDivsArray();
+    container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-100000px';
+    container.style.top = '0';
+    container.innerHTML = slides.join('');
+    document.body.appendChild(container);
+
+    // 사진(base64 dataURL)이 완전히 로드될 때까지 대기
+    const imgs = container.querySelectorAll('img');
+    await Promise.all(Array.from(imgs).map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', resolve, { once: true });
+      });
+    }));
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'in', format: [10, 5.625] });
+    const pageDivs = container.querySelectorAll('.pdf-page');
+
+    for (let i = 0; i < pageDivs.length; i++) {
+      const canvas = await html2canvas(pageDivs[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      if (i > 0) pdf.addPage([10, 5.625], 'landscape');
+      pdf.addImage(imgData, 'JPEG', 0, 0, 10, 5.625);
+    }
+
+    const get = (id) => document.getElementById(id).value.trim();
+    const fileName = (get('title') || '매물소개') + '.pdf';
+    pdf.save(fileName);
+    statusEl.textContent = '완료: ' + fileName + ' 다운로드됨';
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = 'PDF 생성 중 오류가 발생했습니다: ' + err.message;
+  } finally {
+    if (container) document.body.removeChild(container);
+    pdfBtn.disabled = false;
+  }
+});
+</script>
+
+</body>
+</html>
