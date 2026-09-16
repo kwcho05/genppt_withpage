@@ -14,11 +14,16 @@ module.exports = async (req, res) => {
     const meta = await head(url);
 
     if (req.query.debug) {
-      res.status(200).json(meta);
+      const envKeys = Object.keys(process.env).filter((k) => k.includes('BLOB') || k.includes('OIDC'));
+      res.status(200).json({ meta, envKeys });
       return;
     }
 
-    const upstream = await fetch(meta.url);
+    const upstream = await fetch(meta.url, {
+      headers: process.env.BLOB_READ_WRITE_TOKEN
+        ? { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
+        : {}
+    });
     if (!upstream.ok || !upstream.body) {
       res.status(502).json({ error: '파일을 가져오지 못했습니다.' });
       return;
