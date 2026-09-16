@@ -13,6 +13,11 @@ module.exports = async (req, res) => {
     // 우리 스토어에 실제 존재하는 blob인지 확인 (임의 URL 프록시 방지)
     const meta = await head(url);
 
+    if (req.query.debug) {
+      res.status(200).json(meta);
+      return;
+    }
+
     const upstream = await fetch(meta.url);
     if (!upstream.ok || !upstream.body) {
       res.status(502).json({ error: '파일을 가져오지 못했습니다.' });
