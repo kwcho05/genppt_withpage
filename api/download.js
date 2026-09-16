@@ -13,12 +13,6 @@ module.exports = async (req, res) => {
     // 우리 스토어에 실제 존재하는 blob인지 확인 (임의 URL 프록시 방지)
     const meta = await head(url);
 
-    if (req.query.debug) {
-      const envKeys = Object.keys(process.env).filter((k) => k.includes('BLOB') || k.includes('OIDC'));
-      res.status(200).json({ meta, envKeys });
-      return;
-    }
-
     const upstream = await fetch(meta.url, {
       headers: process.env.BLOB_READ_WRITE_TOKEN
         ? { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
