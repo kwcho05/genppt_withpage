@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>매물 PPT 생성기</title>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --navy: #1f3b57;
@@ -148,37 +146,12 @@
     font-size: 14px;
     font-weight: 600;
   }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
   #generateBtn { background: var(--navy); color: #fff; }
   #generateBtn:hover { background: #16283b; }
   #pdfBtn { background: var(--gold); color: #fff; }
   #pdfBtn:hover { background: #ad8a1f; }
   #sampleBtn { background: #eef1f5; color: var(--navy); }
   #sampleBtn:hover { background: #e2e6ec; }
-  #refreshFilesBtn { background: #eef1f5; color: var(--navy); padding: 8px 14px; font-size: 13px; }
-  #refreshFilesBtn:hover { background: #e2e6ec; }
-  .file-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .file-row:last-child { border-bottom: none; }
-  .file-name { font-size: 13.5px; font-weight: 600; color: #222; }
-  .file-meta { font-size: 11.5px; color: var(--gray); }
-  .file-download {
-    flex-shrink: 0;
-    color: #fff;
-    background: var(--navy);
-    text-decoration: none;
-    font-size: 12.5px;
-    font-weight: 600;
-    padding: 6px 12px;
-    border-radius: 6px;
-  }
-  .file-download:hover { background: #16283b; }
   #status { font-size: 13px; color: var(--gray); }
   .hint { font-size: 12px; color: var(--gray); margin-top: -6px; margin-bottom: 10px; }
   #rawText { width: 100%; min-height: 260px; font-size: 13px; line-height: 1.5; }
@@ -191,10 +164,26 @@
 
 <header>
   <h1>매물소개 PPT 생성기 - 해당 중개사무소 노출없음</h1>
-  <p>상세정보 입력 + 사진 업로드 7장 --&gt; PPT/PDF 생성</p>
+  <p>상세정보 입력 + 사진 업로드 7장 --&gt; PPT 생성 . by Cho 20260905</p>
 </header>
 
 <div class="wrap">
+
+  <div class="card">
+    <h2>0. 매물번호로 자동 조회 (명예부동산.com)</h2>
+    <p class="hint">매물번호를 입력하고 "자동 조회"를 누르면 명예부동산.com에서 정보와 사진을 가져와 아래 항목에 자동으로 채워줍니다. 내용을 확인·수정한 뒤 맨 아래 "PPT 생성" 버튼을 누르면 최종 PPT가 만들어집니다.</p>
+    <div class="row">
+      <div class="field" style="flex:0 0 200px;">
+        <label>매물번호</label>
+        <input type="text" id="itemNo" placeholder="예: 11237">
+      </div>
+      <div class="field" style="flex:0 0 auto; justify-content:flex-end;">
+        <label>&nbsp;</label>
+        <button id="lookupBtn" type="button">자동 조회</button>
+      </div>
+    </div>
+    <span id="lookupStatus" class="hint" style="margin-top:0;"></span>
+  </div>
 
   <div class="card">
     <h2>1. 매물 정보 붙여넣기 (자동 분석)</h2>
@@ -308,15 +297,6 @@
     <input type="file" id="photoInput" accept="image/*" multiple>
     <span id="photoCount" class="hint">0 / 7 장 등록됨</span>
     <div class="photo-thumb-grid" id="photoThumbGrid"></div>
-  </div>
-
-  <div class="card">
-    <h2>5. 저장된 파일 (서버 보관함, 최대 5개)</h2>
-    <p class="hint">PPT/PDF를 생성하면 내 컴퓨터로 다운로드됨과 동시에 서버(Vercel Blob)에도 자동 저장됩니다. 최대 5개까지 보관되며, 6번째 파일이 저장되면 가장 오래된 파일이 자동으로 삭제됩니다. 다른 기기에서도 여기서 골라 다운로드할 수 있습니다.</p>
-    <div class="row" style="margin-bottom:0;">
-      <button id="refreshFilesBtn" type="button">새로고침</button>
-    </div>
-    <ul id="fileList" style="list-style:none; padding:0; margin:12px 0 0;"></ul>
   </div>
 
 </div>
@@ -451,69 +431,134 @@ function getPhotosObject() {
   return photos;
 }
 
-// ---------- 서버 저장소(Vercel Blob) ----------
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+// ---------- 매물번호 자동 조회 (명예부동산.com) ----------
+function pyeongOf(sqmStr) {
+  const n = parseFloat(String(sqmStr).replace(/,/g, ''));
+  if (!n || isNaN(n)) return null;
+  return Math.round((n / 3.305785) * 10) / 10;
 }
 
-async function uploadToBlob(blob, filename) {
-  const res = await fetch('/api/upload?filename=' + encodeURIComponent(filename), {
-    method: 'POST',
-    headers: { 'Content-Type': blob.type || 'application/octet-stream' },
-    body: blob
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(text || ('업로드 실패 (' + res.status + ')'));
+function parseAreaInfo(areaStr) {
+  // 예: "대지 3,293㎡ / 건축 198㎡ / 연 198㎡ 평"
+  const out = {};
+  if (!areaStr) return out;
+  const re = /([가-힣]+)\s*([\d,.]+)\s*㎡/g;
+  let m;
+  while ((m = re.exec(areaStr))) {
+    const label = m[1];
+    const sqm = m[2];
+    const py = pyeongOf(sqm);
+    out[label] = { sqm, pyeong: py };
   }
-  return res.json();
+  return out;
 }
 
-async function loadFileList() {
-  const listEl = document.getElementById('fileList');
-  listEl.innerHTML = '<li class="hint">불러오는 중...</li>';
+function buildTermsText(fields) {
+  const dealType = (fields['거래 유형'] || '').trim();
+  if (dealType.includes('월세') && fields['보증금']) {
+    return `보증금 ${fields['보증금']} / 월세 ${fields['월세'] || ''}`.trim();
+  }
+  if (dealType.includes('전세') && (fields['전세보증금'] || fields['보증금'])) {
+    return `전세 ${fields['전세보증금'] || fields['보증금']}`;
+  }
+  if (dealType.includes('매매') && (fields['매매가'] || fields['매매금액'])) {
+    return `매매가 ${fields['매매가'] || fields['매매금액']}`;
+  }
+  const parts = [];
+  if (fields['보증금']) parts.push('보증금 ' + fields['보증금']);
+  if (fields['월세']) parts.push('월세 ' + fields['월세']);
+  return parts.join(' / ');
+}
+
+function applyListingData(data) {
+  const { title, fields, description, images } = data;
+  const v = (id, val) => { document.getElementById(id).value = val || ''; };
+
+  const area = parseAreaInfo(fields['면적정보']);
+  const landKey = Object.keys(area).find(k => k === '대지') || Object.keys(area).find(k => k === '토지');
+  const buildKey = Object.keys(area).find(k => k === '건축');
+  const gfaKey = Object.keys(area).find(k => k === '연');
+
+  const landTag = landKey && area[landKey].pyeong ? `대지 ${area[landKey].pyeong}평` : '';
+  const buildTag = buildKey && area[buildKey].pyeong ? `건물 ${area[buildKey].pyeong}평` : '';
+
+  v('title', title);
+  v('propertyName', title);
+  v('subtitle', [fields['주소'], landTag].filter(Boolean).join(' | '));
+  v('dealType', (fields['거래 유형'] || '').trim());
+  v('landTag', landTag);
+  v('buildingTag', buildTag);
+
+  v('f_location', fields['주소']);
+  v('f_terms', buildTermsText(fields));
+
+  const areaMainParts = [];
+  if (landKey) areaMainParts.push(`대지 ${area[landKey].sqm}㎡${area[landKey].pyeong ? `(${area[landKey].pyeong}평)` : ''}`);
+  v('f_area', areaMainParts.join(' / '));
+
+  const gfaParts = [];
+  if (buildKey) gfaParts.push(`건축 ${area[buildKey].sqm}㎡${area[buildKey].pyeong ? `(${area[buildKey].pyeong}평)` : ''}`);
+  if (gfaKey) gfaParts.push(`연면적 ${area[gfaKey].sqm}㎡${area[gfaKey].pyeong ? `(${area[gfaKey].pyeong}평)` : ''}`);
+  v('f_gfa', gfaParts.join(' / '));
+
+  v('f_power', [fields['층고'], fields['전력']].filter(Boolean).join(' · '));
+  v('f_zone', [fields['용도지역'], fields['지목'], fields['테마 종류']].filter(Boolean).join(' / '));
+  v('f_use', [fields['주용도'], fields['기타용도'] && fields['기타용도'] !== fields['주용도'] ? fields['기타용도'] : ''].filter(Boolean).join(' / '));
+  v('f_direction', [fields['방향'], fields['주차']].filter(Boolean).join(' / '));
+
+  const facilityParts = [];
+  if (fields['사무실 / 화장실'] && !/^-\s*\/\s*-/.test(fields['사무실 / 화장실'])) facilityParts.push('사무실/화장실 ' + fields['사무실 / 화장실']);
+  if (fields['엘리베이터'] && !/^0\s*대/.test(fields['엘리베이터'])) facilityParts.push('엘리베이터 ' + fields['엘리베이터']);
+  if (fields['화물 엘리베이터'] && fields['화물 엘리베이터'] !== '-') facilityParts.push('화물엘리베이터 ' + fields['화물 엘리베이터']);
+  if (fields['대형트럭']) facilityParts.push('대형트럭 ' + fields['대형트럭']);
+  v('f_facility', facilityParts.join(' · '));
+
+  v('f_move', [fields['입주가능일'], fields['사용승인일'] ? ('사용승인 ' + fields['사용승인일']) : ''].filter(Boolean).join(' · '));
+
+  const featureLines = (description || '')
+    .split(/\r?\n/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  v('f_feature', featureLines.join('\n'));
+
+  document.getElementById('rawText').value = description || '';
+
+  // 사진: 사이트 갤러리 첫 번째 사진을 대표사진으로 설정
+  photoList = (images || []).slice(0, MAX_PHOTOS).map((dataURL, idx) => ({
+    uid: 'ph_lookup_' + Date.now() + '_' + idx,
+    dataURL
+  }));
+  renderThumbs();
+}
+
+document.getElementById('lookupBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('lookupStatus');
+  const itemNo = document.getElementById('itemNo').value.trim();
+  if (!itemNo) {
+    statusEl.textContent = '매물번호를 입력해주세요.';
+    return;
+  }
+  if (!window.api || !window.api.fetchListing) {
+    statusEl.textContent = '자동 조회 기능을 사용할 수 없습니다. 프로그램을 다시 설치/실행해주세요. (구버전 실행파일일 수 있습니다)';
+    return;
+  }
+  statusEl.textContent = '조회 중입니다... (관리자 매물사진첩에서 워터마크 없는 사진을 받는 중, 처음 실행 시 로그인 창이 뜰 수 있습니다)';
+  document.getElementById('lookupBtn').disabled = true;
   try {
-    const res = await fetch('/api/files');
-    if (!res.ok) throw new Error('목록을 불러오지 못했습니다 (' + res.status + ')');
-    const data = await res.json();
-    const files = data.files || [];
-    if (files.length === 0) {
-      listEl.innerHTML = '<li class="hint">저장된 파일이 없습니다.</li>';
-      return;
+    const data = await window.api.fetchListing(itemNo);
+    applyListingData(data);
+    if (data.photoWarning) {
+      statusEl.textContent = `정보는 채웠지만 사진을 가져오지 못했습니다: ${data.photoWarning} (사진은 아래에서 직접 업로드해주세요)`;
+    } else {
+      statusEl.textContent = `조회 완료 — 사진 ${data.images.length}장 불러옴(워터마크 제외). 아래 내용을 확인하고 필요하면 수정한 뒤, 맨 아래 "PPT 생성" 버튼을 눌러 승인해주세요.`;
     }
-    listEl.innerHTML = '';
-    files.forEach((f) => {
-      const li = document.createElement('li');
-      li.className = 'file-row';
-      const name = f.pathname.split('/').pop();
-      const date = new Date(f.uploadedAt).toLocaleString('ko-KR');
-      const sizeKb = Math.round(f.size / 1024);
-      const info = document.createElement('div');
-      info.innerHTML = `<div class="file-name">${name}</div><div class="file-meta">${date} · ${sizeKb}KB</div>`;
-      const a = document.createElement('a');
-      a.href = f.url;
-      a.className = 'file-download';
-      a.textContent = '다운로드';
-      a.target = '_blank';
-      a.rel = 'noopener';
-      li.appendChild(info);
-      li.appendChild(a);
-      listEl.appendChild(li);
-    });
   } catch (err) {
-    listEl.innerHTML = '<li class="hint">불러오기 실패: ' + err.message + '</li>';
+    console.error(err);
+    statusEl.textContent = '조회 중 오류가 발생했습니다: ' + err.message;
+  } finally {
+    document.getElementById('lookupBtn').disabled = false;
   }
-}
-
-document.getElementById('refreshFilesBtn').addEventListener('click', loadFileList);
-window.addEventListener('DOMContentLoaded', loadFileList);
+});
 
 // ---------- 원문 자동 분석 ----------
 function decodeEntities(str) {
@@ -931,25 +976,16 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
 
   const fileName = (get('title') || '매물소개') + '.pptx';
   try {
-    const blob = await pptx.write({ outputType: 'blob' });
-    downloadBlob(blob, fileName);
-    statusEl.textContent = fileName + ' 다운로드됨 — 서버에 저장 중...';
-    try {
-      await uploadToBlob(blob, fileName);
-      statusEl.textContent = '완료: ' + fileName + ' 다운로드 및 서버 저장 완료';
-      loadFileList();
-    } catch (uploadErr) {
-      console.error(uploadErr);
-      statusEl.textContent = fileName + ' 다운로드는 완료했지만 서버 저장에 실패했습니다: ' + uploadErr.message;
-    }
+    await pptx.writeFile({ fileName });
+    statusEl.textContent = '완료: ' + fileName + ' 다운로드됨';
   } catch (err) {
     console.error(err);
     statusEl.textContent = '오류가 발생했습니다: ' + err.message;
   }
 });
 
-// ---------- PDF 생성 (PPT와 동일한 구조/이미지, 브라우저에서 직접 렌더링) ----------
-function buildSlideDivsArray() {
+// ---------- PDF 생성 (PPT와 동일한 구조/이미지) ----------
+function buildSlidesHtmlDoc() {
   const get = (id) => document.getElementById(id).value.trim();
   const CHARCOAL = '#3A3A3A';
   const CORAL = '#D9764A';
@@ -1019,7 +1055,7 @@ function buildSlideDivsArray() {
   }).join('');
 
   const slide1 = `
-  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;font-family:'Malgun Gothic',sans-serif;">
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;">
     ${brandBar}
     <div style="position:absolute;left:${0.4 * IN}px;top:${0.55 * IN}px;width:${4.3 * IN}px;font-size:21pt;font-weight:700;color:${CHARCOAL};">${esc(get('title') || '매물 제목')}</div>
     <div style="position:absolute;left:${0.4 * IN}px;top:${1.42 * IN}px;width:${0.6 * IN}px;height:6px;background:${CORAL};"></div>
@@ -1050,7 +1086,7 @@ function buildSlideDivsArray() {
     </div>` : '';
 
   const slide2 = `
-  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;font-family:'Malgun Gothic',sans-serif;">
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;">
     ${brandBar}
     <div style="position:absolute;left:${0.4 * IN}px;top:${0.25 * IN}px;width:${9.2 * IN}px;font-size:15pt;font-weight:700;color:${CHARCOAL};">매물 핵심정보</div>
     <div style="position:absolute;left:${0.4 * IN}px;top:${0.68 * IN}px;width:${9.2 * IN}px;font-size:9.5pt;font-style:italic;color:${GRAY};">${esc(get('propertyName') || '매물명')}</div>
@@ -1083,76 +1119,37 @@ function buildSlideDivsArray() {
   }
 
   const slide3 = `
-  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;font-family:'Malgun Gothic',sans-serif;">
+  <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;">
     ${brandBar}
     <div style="position:absolute;left:${0.4 * IN}px;top:${0.3 * IN}px;width:${9.2 * IN}px;font-size:16pt;font-weight:700;color:${CHARCOAL};">매물 사진</div>
     ${galleryCells}
   </div>`;
 
-  return [slide1, slide2, slide3];
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    @page { size: 10in 5.625in; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Malgun Gothic', sans-serif; }
+    .pdf-page { page-break-after: always; }
+    .pdf-page:last-child { page-break-after: auto; }
+  </style></head><body>${slide1}${slide2}${slide3}</body></html>`;
 }
 
 document.getElementById('pdfBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('status');
-  const pdfBtn = document.getElementById('pdfBtn');
-  if (!window.jspdf || !window.html2canvas) {
-    statusEl.textContent = 'PDF 생성 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침 해주세요.';
+  if (!window.api || !window.api.generatePdf) {
+    statusEl.textContent = 'PDF 생성 기능을 사용할 수 없습니다. 프로그램을 다시 설치/실행해주세요. (구버전 실행파일일 수 있습니다)';
     return;
   }
-
-  statusEl.textContent = 'PDF 생성 중... (사진이 많으면 시간이 걸릴 수 있습니다)';
-  pdfBtn.disabled = true;
-
-  let container = null;
+  statusEl.textContent = 'PDF 생성 중...';
   try {
-    const slides = buildSlideDivsArray();
-    container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.left = '-100000px';
-    container.style.top = '0';
-    container.innerHTML = slides.join('');
-    document.body.appendChild(container);
-
-    // 사진(base64 dataURL)이 완전히 로드될 때까지 대기
-    const imgs = container.querySelectorAll('img');
-    await Promise.all(Array.from(imgs).map((img) => {
-      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-      return new Promise((resolve) => {
-        img.addEventListener('load', resolve, { once: true });
-        img.addEventListener('error', resolve, { once: true });
-      });
-    }));
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'in', format: [10, 5.625] });
-    const pageDivs = container.querySelectorAll('.pdf-page');
-
-    for (let i = 0; i < pageDivs.length; i++) {
-      const canvas = await html2canvas(pageDivs[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      if (i > 0) pdf.addPage([10, 5.625], 'landscape');
-      pdf.addImage(imgData, 'JPEG', 0, 0, 10, 5.625);
-    }
-
+    const html = buildSlidesHtmlDoc();
     const get = (id) => document.getElementById(id).value.trim();
     const fileName = (get('title') || '매물소개') + '.pdf';
-    const blob = pdf.output('blob');
-    downloadBlob(blob, fileName);
-    statusEl.textContent = fileName + ' 다운로드됨 — 서버에 저장 중...';
-    try {
-      await uploadToBlob(blob, fileName);
-      statusEl.textContent = '완료: ' + fileName + ' 다운로드 및 서버 저장 완료';
-      loadFileList();
-    } catch (uploadErr) {
-      console.error(uploadErr);
-      statusEl.textContent = fileName + ' 다운로드는 완료했지만 서버 저장에 실패했습니다: ' + uploadErr.message;
-    }
+    const result = await window.api.generatePdf({ html, fileName });
+    statusEl.textContent = result.canceled ? 'PDF 저장이 취소되었습니다.' : '완료: ' + result.filePath + ' 저장됨';
   } catch (err) {
     console.error(err);
     statusEl.textContent = 'PDF 생성 중 오류가 발생했습니다: ' + err.message;
-  } finally {
-    if (container) document.body.removeChild(container);
-    pdfBtn.disabled = false;
   }
 });
 </script>

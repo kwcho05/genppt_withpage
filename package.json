@@ -1,18 +1,8 @@
 {
-  "name": "ppt-generator",
+  "name": "ppt-generator-web",
   "version": "1.0.0",
-  "description": "매물소개 PPT 생성기",
-  "main": "main.js",
-  "author": "Cho",
-  "scripts": {
-    "start": "electron .",
-    "package": "electron-packager . PPT생성기 --platform=win32 --arch=x64 --out=dist --overwrite --asar"
-  },
-  "devDependencies": {
-    "electron": "^31.0.0",
-    "electron-packager": "^17.1.2"
-  },
+  "private": true,
   "dependencies": {
-    "adm-zip": "^0.6.1"
+    "@vercel/blob": "latest"
   }
 }
