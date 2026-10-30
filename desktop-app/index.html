@@ -531,6 +531,13 @@ function applyListingData(data) {
   renderThumbs();
 }
 
+if (window.api && window.api.onLoginRequired) {
+  window.api.onLoginRequired(() => {
+    document.getElementById('lookupStatus').textContent =
+      '사진을 받으려면 관리자 로그인이 필요합니다. 새로 뜬 "명예부동산 관리자 로그인" 창에서 로그인해주세요. (한 번 로그인하면 30일간 유지됩니다)';
+  });
+}
+
 document.getElementById('lookupBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('lookupStatus');
   const itemNo = document.getElementById('itemNo').value.trim();

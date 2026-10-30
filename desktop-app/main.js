@@ -43,7 +43,9 @@ ipcMain.handle('fetch-listing', async (event, itemNo) => {
   let images = [];
   let photoWarning = null;
   try {
-    images = await fetchAdminPhotos(itemNo);
+    images = await fetchAdminPhotos(itemNo, () => {
+      if (!event.sender.isDestroyed()) event.sender.send('login-required');
+    });
   } catch (e) {
     photoWarning = e.message;
   }
