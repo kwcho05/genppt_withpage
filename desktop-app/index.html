@@ -24,9 +24,24 @@
     background: var(--navy);
     color: #fff;
     padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
   }
   header h1 { margin: 0 0 4px; font-size: 22px; }
   header p { margin: 0; font-size: 13px; color: #cfd8e3; }
+  .brand { font-size: 24px; font-weight: 700; letter-spacing: 1px; white-space: nowrap; }
+  footer {
+    padding: 20px 16px 28px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--gray);
+  }
+  footer a { color: var(--navy); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
   .wrap {
     max-width: 980px;
     margin: 24px auto 60px;
@@ -165,8 +180,11 @@
 <body>
 
 <header>
-  <h1>매물소개 PPT 생성기 - 해당 중개사무소 노출없음</h1>
-  <p>상세정보 입력 + 사진 업로드 7장 --&gt; PPT 생성 . by Cho 20260905</p>
+  <div>
+    <h1>매물소개 PPT 생성기 - 해당 중개사무소 노출없음</h1>
+    <p>상세정보 입력 + 사진 업로드 7장 --&gt; PPT/PDF 생성</p>
+  </div>
+  <div class="brand">코드리뷰</div>
 </header>
 
 <div class="wrap">
@@ -310,6 +328,11 @@
   <button id="resetBtn" type="button">새로쓰기</button>
   <span id="status"></span>
 </div>
+
+<footer>
+  <div>사업자 코드리뷰 · 사업자등록번호 639-10-03478</div>
+  <div>개발 및 문의 <a href="mailto:codereview35@gmail.com">codereview35@gmail.com</a></div>
+</footer>
 
 <script>
 const MAX_PHOTOS = 7;
