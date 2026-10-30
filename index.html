@@ -26,9 +26,24 @@
     background: var(--navy);
     color: #fff;
     padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
   }
   header h1 { margin: 0 0 4px; font-size: 22px; }
   header p { margin: 0; font-size: 13px; color: #cfd8e3; }
+  .brand { font-size: 24px; font-weight: 700; letter-spacing: 1px; white-space: nowrap; }
+  footer {
+    padding: 20px 16px 28px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--gray);
+  }
+  footer a { color: var(--navy); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
   .wrap {
     max-width: 980px;
     margin: 24px auto 60px;
@@ -60,6 +75,7 @@
     font-family: inherit;
   }
   textarea { resize: vertical; min-height: 44px; }
+  input::placeholder, textarea::placeholder { color: #c4c9d0; opacity: 1; }
   .table-fields .row { align-items: flex-end; }
   #photoInput { margin-bottom: 6px; }
   #photoCount { display: block; margin-bottom: 12px; }
@@ -155,6 +171,8 @@
   #pdfBtn:hover { background: #ad8a1f; }
   #sampleBtn { background: #eef1f5; color: var(--navy); }
   #sampleBtn:hover { background: #e2e6ec; }
+  #resetBtn { background: #fff; color: #b42318; border: 1px solid #f1c0bb; }
+  #resetBtn:hover { background: #fdecea; }
   #refreshFilesBtn { background: #eef1f5; color: var(--navy); padding: 8px 14px; font-size: 13px; }
   #refreshFilesBtn:hover { background: #e2e6ec; }
   .file-row {
@@ -190,8 +208,11 @@
 <body>
 
 <header>
-  <h1>매물소개 PPT 생성기 - 해당 중개사무소 노출없음</h1>
-  <p>상세정보 입력 + 사진 업로드 7장 --&gt; PPT/PDF 생성</p>
+  <div>
+    <h1>매물소개 PPT 생성기 - 해당 중개사무소 노출없음</h1>
+    <p>상세정보 입력 + 사진 업로드 7장 --&gt; PPT/PDF 생성</p>
+  </div>
+  <div class="brand">코드리뷰</div>
 </header>
 
 <div class="wrap">
@@ -325,8 +346,14 @@
   <button id="generateBtn">PPT 생성 (다운로드)</button>
   <button id="pdfBtn">PDF 생성 (다운로드)</button>
   <button id="sampleBtn">샘플 데이터 채우기</button>
+  <button id="resetBtn" type="button">새로쓰기</button>
   <span id="status"></span>
 </div>
+
+<footer>
+  <div>사업자 코드리뷰 · 사업자등록번호 639-10-03478</div>
+  <div>개발 및 문의 <a href="mailto:codereview35@gmail.com">codereview35@gmail.com</a></div>
+</footer>
 
 <script>
 const MAX_PHOTOS = 7;
@@ -460,7 +487,8 @@ function downloadBlob(blob, filename) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // 바로 해제하면 브라우저가 파일을 다 읽기 전에 다운로드가 끊길 수 있어 잠시 뒤 해제
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 async function uploadToBlob(blob, filename) {
@@ -685,6 +713,19 @@ document.getElementById('parseBtn').addEventListener('click', () => {
     console.error(err);
     parseStatusEl.textContent = '분석 중 오류가 발생했습니다: ' + err.message;
   }
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('입력한 내용과 사진을 모두 지우고 새로 작성할까요?')) return;
+  document.querySelectorAll('.wrap input[type="text"], .wrap textarea').forEach((el) => { el.value = ''; });
+  photoList = [];
+  renderThumbs();
+  ['status', 'parseStatus', 'lookupStatus'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+  document.getElementById('status').textContent = '새로 작성할 수 있도록 모두 비웠습니다.';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
 document.getElementById('sampleBtn').addEventListener('click', () => {
@@ -1002,48 +1043,50 @@ function buildSlideDivsArray() {
     ? `<img src="${photos.main}" style="width:100%;height:100%;object-fit:cover;display:block;">`
     : `<div style="width:100%;height:100%;background:${LIGHT};border:1px solid ${BORDER};display:flex;align-items:center;justify-content:center;color:${GRAY};font-size:14px;box-sizing:border-box;">대표사진 삽입</div>`;
 
-  const termsChip = termsValue
-    ? `<div style="position:absolute;left:${(0.4 + 1.3 + 0.15) * IN}px;top:${2.15 * IN}px;width:${(4.3 - 1.3 - 0.15) * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${LIGHT};border:1px solid ${CORAL};display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:0 8px;">
-        <span style="font-size:${termsValue.length > 16 ? 9.5 : 11.5}pt;font-weight:700;color:${CHARCOAL};text-align:center;">${esc(termsValue)}</span>
-      </div>`
-    : '';
+  // 글자가 길면 data-fit 요소는 fitSlides()가 박스 안에 들어갈 때까지 글씨를 줄인다.
+  const chip = (text, { bg, border, color, fontPt, flex }) => `
+    <div data-fit="9" style="${flex}height:${0.55 * IN}px;border-radius:8px;background:${bg};${border ? `border:1px solid ${border};` : ''}display:flex;align-items:safe center;justify-content:center;box-sizing:border-box;padding:2px 8px;overflow:hidden;font-size:${fontPt}pt;font-weight:700;color:${color};text-align:center;line-height:1.2;word-break:keep-all;">${esc(text)}</div>`;
 
-  const halfW = (4.3 - 0.15) / 2;
-  const tagsHtml = [buildingTag, landTag].map((tag, i) => {
-    if (!tag) return '';
-    const tx = (0.4 + i * (halfW + 0.15)) * IN;
-    return `<div style="position:absolute;left:${tx}px;top:${2.8 * IN}px;width:${halfW * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${LIGHT};border:1px solid ${GOLD};display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
-      <span style="font-size:12.5pt;font-weight:700;color:${CHARCOAL};">${esc(tag)}</span>
-    </div>`;
-  }).join('');
+  const termsChip = termsValue
+    ? chip(termsValue, { bg: LIGHT, border: CORAL, color: CHARCOAL, fontPt: 11.5, flex: 'flex:1 1 0;min-width:0;' })
+    : '';
+  const tagsHtml = [buildingTag, landTag].filter(Boolean)
+    .map((tag) => chip(tag, { bg: LIGHT, border: GOLD, color: CHARCOAL, fontPt: 12.5, flex: 'flex:1 1 0;min-width:0;' }))
+    .join('');
 
   const slide1 = `
   <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;font-family:'Malgun Gothic',sans-serif;">
     ${brandBar}
-    <div style="position:absolute;left:${0.4 * IN}px;top:${0.55 * IN}px;width:${4.3 * IN}px;font-size:21pt;font-weight:700;color:${CHARCOAL};">${esc(get('title') || '매물 제목')}</div>
-    <div style="position:absolute;left:${0.4 * IN}px;top:${1.42 * IN}px;width:${0.6 * IN}px;height:6px;background:${CORAL};"></div>
-    <div style="position:absolute;left:${1.04 * IN}px;top:${1.42 * IN}px;width:${0.3 * IN}px;height:6px;background:${GOLD};"></div>
-    <div style="position:absolute;left:${0.4 * IN}px;top:${1.55 * IN}px;width:${4.3 * IN}px;font-size:9.5pt;color:${GRAY};">${esc(get('subtitle') || '주소 요약을 입력하세요')}</div>
-    <div style="position:absolute;left:${0.4 * IN}px;top:${2.15 * IN}px;width:${1.3 * IN}px;height:${0.55 * IN}px;border-radius:8px;background:${CORAL};display:flex;align-items:center;justify-content:center;">
-      <span style="font-size:13pt;font-weight:700;color:#fff;">${esc(dealLabel)}</span>
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.5 * IN}px;width:${4.3 * IN}px;height:${4.75 * IN}px;display:flex;flex-direction:column;">
+      <div data-fit="14" style="max-height:${1.35 * IN}px;overflow:hidden;font-size:21pt;font-weight:700;line-height:1.25;color:${CHARCOAL};word-break:keep-all;">${esc(get('title') || '매물 제목')}</div>
+      <div style="display:flex;gap:${0.04 * IN}px;margin:${0.1 * IN}px 0 ${0.08 * IN}px;flex-shrink:0;">
+        <div style="width:${0.6 * IN}px;height:6px;background:${CORAL};"></div>
+        <div style="width:${0.3 * IN}px;height:6px;background:${GOLD};"></div>
+      </div>
+      <div data-fit="9" style="max-height:${0.5 * IN}px;overflow:hidden;font-size:9.5pt;line-height:1.35;color:${GRAY};flex-shrink:0;">${esc(get('subtitle') || '주소 요약을 입력하세요')}</div>
+      <div style="display:flex;gap:${0.15 * IN}px;margin-top:${0.25 * IN}px;flex-shrink:0;">
+        ${chip(dealLabel, { bg: CORAL, color: '#fff', fontPt: 13, flex: `flex:0 0 ${1.3 * IN}px;` })}
+        ${termsChip}
+      </div>
+      ${tagsHtml ? `<div style="display:flex;gap:${0.15 * IN}px;margin-top:${0.1 * IN}px;flex-shrink:0;">${tagsHtml}</div>` : ''}
     </div>
-    ${termsChip}
-    ${tagsHtml}
     <div style="position:absolute;left:${5.0 * IN}px;top:${0.4 * IN}px;width:${4.6 * IN}px;height:${4.83 * IN}px;">${mainImgHtml}</div>
   </div>`;
 
   // ---- Slide 2: 매물 핵심정보 ----
+  // 표와 특징 박스를 위에서부터 차례로 쌓고, 전체가 넘치면 fitSlides()가 글씨를 함께 줄인다.
+  const cell = `padding:0.25em 0.8em;border:0.75px solid ${BORDER};vertical-align:middle;`;
   const tableRowsHtml = rows.map(([label, value]) => `
     <tr>
-      <td style="background:${LIGHT};color:${CHARCOAL};font-weight:700;padding:2px 8px;border:0.75px solid ${BORDER};width:${2.0 * IN}px;">${esc(label)}</td>
-      <td style="color:#333;padding:2px 8px;border:0.75px solid ${BORDER};">${esc(value) || '-'}</td>
+      <td style="${cell}background:${LIGHT};color:${CHARCOAL};font-weight:700;">${esc(label)}</td>
+      <td style="${cell}color:#333;">${esc(value) || '-'}</td>
     </tr>`).join('');
 
   const featureBoxHtml = featureItems.length > 0 ? `
-    <div style="position:absolute;left:${0.4 * IN}px;top:${3.95 * IN}px;width:${9.2 * IN}px;height:${1.55 * IN}px;border-radius:6px;background:${LIGHT};border:1px solid ${BORDER};box-sizing:border-box;overflow:hidden;">
+    <div style="flex:1 1 auto;min-height:${1.0 * IN}px;margin-top:${0.12 * IN}px;position:relative;border-radius:6px;background:${LIGHT};border:1px solid ${BORDER};box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;padding:${0.08 * IN}px ${0.15 * IN}px ${0.08 * IN}px ${0.21 * IN}px;">
       <div style="position:absolute;left:0;top:0;width:6px;height:100%;background:${CORAL};"></div>
-      <div style="padding:8px 15px 0 21px;font-size:11pt;font-weight:700;color:${CHARCOAL};">특징 및 장점</div>
-      <div style="padding:4px 15px 8px 21px;font-size:9.5pt;color:#333;column-count:${useTwoCols ? 2 : 1};column-gap:20px;">
+      <div style="font-size:1.2em;font-weight:700;color:${CHARCOAL};flex-shrink:0;">특징 및 장점</div>
+      <div data-fit-check style="flex:1 1 auto;min-height:0;overflow:hidden;margin-top:0.3em;font-size:1.05em;color:#333;column-count:${useTwoCols ? 2 : 1};column-gap:20px;column-fill:auto;">
         ${featureItems.map((item) => `<div style="break-inside:avoid;line-height:1.35;">● ${esc(item)}</div>`).join('')}
       </div>
     </div>` : '';
@@ -1052,15 +1095,18 @@ function buildSlideDivsArray() {
   <div class="pdf-page" style="width:${PAGE_W}px;height:${PAGE_H}px;position:relative;background:#fff;overflow:hidden;font-family:'Malgun Gothic',sans-serif;">
     ${brandBar}
     <div style="position:absolute;left:${0.4 * IN}px;top:${0.25 * IN}px;width:${9.2 * IN}px;font-size:15pt;font-weight:700;color:${CHARCOAL};">매물 핵심정보</div>
-    <div style="position:absolute;left:${0.4 * IN}px;top:${0.68 * IN}px;width:${9.2 * IN}px;font-size:9.5pt;font-style:italic;color:${GRAY};">${esc(get('propertyName') || '매물명')}</div>
-    <table style="position:absolute;left:${0.4 * IN}px;top:${1.15 * IN}px;width:${9.2 * IN}px;border-collapse:collapse;table-layout:fixed;font-size:9pt;line-height:1.15;font-family:'Malgun Gothic',sans-serif;">
-      <tr>
-        <td style="background:${CHARCOAL};color:#fff;font-weight:700;text-align:center;padding:2px 8px;border:0.75px solid ${BORDER};">구분</td>
-        <td style="background:${CHARCOAL};color:#fff;font-weight:700;text-align:center;padding:2px 8px;border:0.75px solid ${BORDER};">내용</td>
-      </tr>
-      ${tableRowsHtml}
-    </table>
-    ${featureBoxHtml}
+    <div style="position:absolute;left:${0.4 * IN}px;top:${0.68 * IN}px;width:${9.2 * IN}px;font-size:9.5pt;font-style:italic;color:${GRAY};white-space:nowrap;overflow:hidden;" data-fit="8">${esc(get('propertyName') || '매물명')}</div>
+    <div data-fit="9" style="position:absolute;left:${0.4 * IN}px;top:${1.1 * IN}px;width:${9.2 * IN}px;height:${4.35 * IN}px;display:flex;flex-direction:column;overflow:hidden;font-size:9.5pt;">
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:1em;line-height:1.25;flex-shrink:0;">
+        <colgroup><col style="width:${1.8 * IN}px;"><col></colgroup>
+        <tr>
+          <td style="${cell}background:${CHARCOAL};color:#fff;font-weight:700;text-align:center;">구분</td>
+          <td style="${cell}background:${CHARCOAL};color:#fff;font-weight:700;text-align:center;">내용</td>
+        </tr>
+        ${tableRowsHtml}
+      </table>
+      ${featureBoxHtml}
+    </div>
   </div>`;
 
   // ---- Slide 3: 매물 사진 ----
@@ -1091,6 +1137,21 @@ function buildSlideDivsArray() {
   return [slide1, slide2, slide3];
 }
 
+// data-fit="최소px" 요소(또는 그 안의 data-fit-check 요소)가 박스를 넘치면(세로/가로)
+// 넘치지 않을 때까지 그 요소의 글씨 크기를 줄인다. 안쪽 글씨는 em 단위라 함께 줄어든다.
+function fitSlides(root) {
+  const overflows = (el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+  root.querySelectorAll('[data-fit]').forEach((el) => {
+    const min = parseFloat(el.getAttribute('data-fit')) || 8;
+    const targets = [el, ...el.querySelectorAll('[data-fit-check]')];
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    for (let i = 0; i < 120 && size > min && targets.some(overflows); i++) {
+      size -= 0.25;
+      el.style.fontSize = size + 'px';
+    }
+  });
+}
+
 document.getElementById('pdfBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('status');
   const pdfBtn = document.getElementById('pdfBtn');
@@ -1111,6 +1172,7 @@ document.getElementById('pdfBtn').addEventListener('click', async () => {
     container.style.top = '0';
     container.innerHTML = slides.join('');
     document.body.appendChild(container);
+    fitSlides(container);
 
     // 사진(base64 dataURL)이 완전히 로드될 때까지 대기
     const imgs = container.querySelectorAll('img');
